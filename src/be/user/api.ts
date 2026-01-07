@@ -11,4 +11,8 @@ export abstract class IAuthService {
     email: string,
     password: string,
   ): Promise<{ accessToken: string; refreshToken: string }>;
+
+  abstract refreshToken(
+    token: string,
+  ): Promise<{ accessToken: string; refreshToken: string }>;
 }

@@ -4,6 +4,11 @@ import { IAuthService } from "../api";
 import { user } from "./entities/UserEntity";
 import { userVerification } from "./entities/VerificationEntity";
 import { generateUUID } from "../../util/UUID";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyJwt,
+} from "../../util/Jwt";
 
 export class AuthServiceImpl extends IAuthService {
   override async triggerEmailVerification(email: string): Promise<string> {
@@ -87,10 +92,57 @@ export class AuthServiceImpl extends IAuthService {
     return true;
   }
 
-  override login(
-    _email: string,
-    _password: string,
+  override async login(
+    email: string,
+    password: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    throw new Error("Method not implemented.");
+    const foundUser = await db
+      .select()
+      .from(user)
+      .where(eq(user.username, email))
+      .limit(1);
+
+    const u = foundUser[0];
+
+    if (!u) {
+      throw new Error("Invalid email or password");
+    }
+
+    const valid = await Bun.password.verify(password, u.password);
+    if (!valid) {
+      throw new Error("Invalid email or password");
+    }
+
+    const accessToken = await generateAccessToken(u.id);
+    const refreshToken = await generateRefreshToken(u.id);
+
+    return { accessToken, refreshToken };
+  }
+
+  override async refreshToken(
+    token: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const payload = await verifyJwt(token);
+    if (!payload || !payload.sub) {
+      throw new Error("Invalid refresh token");
+    }
+
+    const userId = payload.sub as string;
+
+    // Optional: Verify user exists and is not banned
+    const foundUser = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (foundUser.length === 0) {
+      throw new Error("User not found");
+    }
+
+    const newAccessToken = await generateAccessToken(userId);
+    const newRefreshToken = await generateRefreshToken(userId);
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 }
