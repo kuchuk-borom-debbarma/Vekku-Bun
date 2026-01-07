@@ -63,7 +63,27 @@ This will:
 bun run dev
 ```
 
-## 6. Testing
+## 6. Deployment (Cloudflare Workers)
+This project is configured for Cloudflare Workers.
+
+### 1. Setup
+Install Wrangler:
+```bash
+bun add -d wrangler
+```
+
+### 2. Configure Secrets
+Set your Neon Database URL:
+```bash
+bun x wrangler secret put DATABASE_URL
+```
+
+### 3. Deploy
+```bash
+bun x wrangler deploy
+```
+
+## 7. Testing
 Run the test suite using Bun's native test runner:
 ```bash
 # Run all tests

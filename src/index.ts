@@ -1,29 +1,46 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
-import { createAppContainer } from "./be/infra/di";
-import type { UserController } from "./be/user/_internal/UserController";
-import type { TagController } from "./be/tag/_internal/TagController";
+import { drizzle } from "drizzle-orm/neon-http";
+import { BunHasher } from "./be/infra/hashing/BunHasher";
+import { WebHasher } from "./be/infra/hashing/WebHasher";
+import { applyRegistrations } from "./be/infra/AppRegistry";
 
-const app = new Hono();
+// Import domains to trigger registration
+import "./be/user/registry";
+import "./be/tag/registry";
 
-// Initialize DI Container
-const container = createAppContainer();
+type Bindings = {
+  DATABASE_URL: string;
+  WORKER?: string;
+};
 
-// Enable CORS for frontend development
-app.use("/api/*", cors());
+const createApp = (env: Bindings) => {
+  const app = new Hono<{ Bindings: Bindings }>();
 
-app.get("/api/health", (c) => c.json({ status: "ok" }));
+  app.use("/api/*", cors());
 
-// Mount Domain Routes via Controllers
-const userController = container.resolve<UserController>("userController");
-app.route("/api/user", userController.routes());
+  // 1. Infrastructure
+  const db = drizzle(env.DATABASE_URL);
+  const hasher = env.WORKER ? new WebHasher() : new BunHasher();
 
-const tagController = container.resolve<TagController>("tagController");
-app.route("/api/tag", tagController.routes());
+  // 2. Apply all registered domain routes
+  applyRegistrations(app, { db, hasher });
 
-// Serve static frontend only if built (useful for local dev/testing)
-app.use("/*", serveStatic({ root: "./dist" }));
-app.get("*", serveStatic({ path: "./dist/index.html" }));
+  app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-export default app;
+  // 3. Static Files (Only for Bun/Local)
+  if (!env.WORKER) {
+    app.use("/*", serveStatic({ root: "./dist" }));
+    app.get("*", serveStatic({ path: "./dist/index.html" }));
+  }
+
+  return app;
+};
+
+export default {
+  fetch(request: Request, env: Bindings, ctx: any) {
+    const app = createApp(env || process.env);
+    return app.fetch(request, env, ctx);
+  },
+};

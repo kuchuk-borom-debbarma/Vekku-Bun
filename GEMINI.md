@@ -10,6 +10,7 @@
 -   **Database:** PostgreSQL (Neon Serverless)
 -   **ORM:** Drizzle ORM
 -   **Auth:** Custom (JWT + Bun Native Password Hashing)
+-   **Deployment:** Cloudflare Workers (Platform Agnostic API)
 -   **Utilities:** `uuid` (Standard & v5 Deterministic), `hono/jwt`
 
 ## Architecture & Features
@@ -31,11 +32,12 @@ The project implements a **Chunk-Based Two-Step Pagination** strategy to solve t
 *   **Strategy:** Uses `uuid` library. Supports standard v4 and deterministic v5 (Name-based) generation.
 *   **Usage:** Tags use deterministic UUIDs generated from `[tagName, userId]` to ensure uniqueness per user-tag pair without extra DB lookups.
 
-### 3. Dependency Injection (Awilix)
-The project uses **Awilix** for platform-agnostic dependency injection. 
-*   **Composition Root:** `src/be/infra/di.ts` is the single entry point where the container is initialized and common infrastructure (DB, Hasher) is registered.
-*   **Domain Manifests:** Each domain (e.g., `user`, `tag`) exports a `registerDomain(container)` function in its `index.ts`. This encapsulates domain-specific registrations (Services, Routers) and prevents `_internal` implementation details from leaking to the root container.
-*   **Constructor Injection:** Services use object destructuring in their constructors: `constructor({ db, hasher }: Deps)`.
+### 3. Architecture: Manual Composition & Registry
+The project uses a **functional composition pattern** to remain lightweight and compatible with serverless environments (Cloudflare Workers).
+*   **Entry Point (`src/index.ts`):** Acts as the composition root. It accepts the environment (`env`), initializes infrastructure (`db`, `hasher`), and wires up domains.
+*   **Registries (`src/be/*/registry.ts`):** Each domain exports a registration side-effect that attaches its routes to the main Hono app.
+*   **Infrastructure (`src/be/infra/Registry.ts`):** A lightweight collector that queues route registration functions.
+*   **No Framework:** We removed heavy DI containers in favor of explicit, manual injection via factory functions (`createUserModule`).
 
 ### 4. Custom Authentication & Platform Abstraction
 *   **Hasher Abstraction:** `IHasher` interface allows swapping between `BunHasher` (native C++) and `WebHasher` (Standard Web Crypto) depending on the deployment platform.
