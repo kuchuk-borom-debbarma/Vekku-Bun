@@ -14,16 +14,17 @@
 
 ## Architecture & Features
 
-### 1. Hybrid Cursor-Anchored Pagination
-The project implements a **Bi-Directional Stateless Segmented Pagination** strategy to solve the performance issues of deep offsets while maintaining user-friendly page numbers.
+### 1. Chunk-Based Two-Step Pagination
+The project implements a **Chunk-Based Two-Step Pagination** strategy to solve the performance issues of deep offsets while maintaining user-friendly page numbers within local segments.
 
 *   **Location:** `src/be/tag/_internal/TagService.ts`
 *   **Documentation:** `docs/cursor-anchored-pagination.md`
 *   **Key Concept:**
-    *   **Segments:** Data is split into fixed windows (e.g., 2,000 items).
-    *   **Anchors:** Cursors (Timestamp + ID) marking the start of a segment.
-    *   **Offsets:** Fast, bounded offsets used *within* a segment.
-    *   **Stateless Navigation:** The backend calculates both `nextAnchorId` (Forward scan) and `prevAnchorId` (Backward scan) in parallel, allowing users to jump between segments without client-side history state.
+    *   **Chunks:** Data is viewed in large windows (e.g., 2,000 items).
+    *   **Two-Step Fetch:** 
+        1.  Fetch **IDs only** for the chunk (Index Scan).
+        2.  Slice IDs in memory (Offset/Limit) and fetch **full data** only for the requested page.
+    *   **Stateless Navigation:** The `nextChunkId` allows jumping to the next segment efficiently.
 
 ### 2. UUID Handling
 *   **Location:** `src/util/UUID.ts` (Inferred)

@@ -1,12 +1,9 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../infra/Drizzle";
-import {
-  PaginationDirection,
-  type AnchorSegmentPaginationData,
-} from "../../util/Pagination";
+import { type ChunkPaginationData } from "../../util/Pagination";
+import { generateUUID } from "../../util/UUID";
 import { ITagService, type UserTag } from "../api";
 import { userTags } from "./entities/UserTagEntity";
-import { generateUUID } from "../../util/UUID";
 
 export class TagService extends ITagService {
   SEGMENT_SIZE = 2000;
@@ -41,171 +38,158 @@ export class TagService extends ITagService {
     }
   }
 
-  override updateTag(data: {
+  override async updateTag(data: {
     id: string;
     userId: string;
     name?: string;
     semantic?: string;
-  }): Promise<UserTag> {
-    throw new Error("Method not implemented.");
+  }): Promise<UserTag | null> {
+    const toUpdate: { name?: string; semantic?: string } = {};
+
+    if (data.name) {
+      toUpdate.name = data.name;
+    }
+    if (data.semantic) {
+      toUpdate.semantic = data.semantic;
+    }
+
+    const result = await db
+      .update(userTags)
+      .set({ ...toUpdate, updatedAt: new Date() })
+      .where(
+        and(
+          eq(userTags.id, data.id),
+          eq(userTags.userId, data.userId),
+          eq(userTags.isDeleted, false),
+        ),
+      )
+      .returning();
+    const tag = result[0];
+    if (tag) {
+      return {
+        id: tag.id,
+        name: tag.name,
+        semantic: tag.semantic,
+        userId: tag.userId,
+        createdAt: tag.createdAt,
+        updatedAt: tag.updatedAt,
+      };
+    }
+    return null;
   }
-  override deleteTag(data: { id: string; userId: string }): Promise<boolean> {
-    throw new Error("Method not implemented.");
+
+  override async deleteTag(data: {
+    id: string;
+    userId: string;
+  }): Promise<boolean> {
+    const result = await db
+      .update(userTags)
+      .set({ updatedAt: new Date(), isDeleted: true })
+      .where(and(eq(userTags.id, data.id), eq(userTags.userId, data.userId)))
+      .returning();
+
+    return result.length > 0;
   }
+
   override async getTagsOfUser(data: {
     userId: string;
-    anchorId?: string;
+    chunkId?: string;
     limit?: number;
     offset?: number;
-    direction?: PaginationDirection;
-  }): Promise<AnchorSegmentPaginationData<UserTag>> {
-    let {
-      userId,
-      anchorId = null,
-      direction = PaginationDirection.NEXT,
-      limit = 5,
-      offset = 0,
-    } = data;
+  }): Promise<ChunkPaginationData<UserTag>> {
+    let { userId, chunkId = null, limit = 20, offset = 0 } = data;
 
-    if (offset < 0) {
-      throw new Error("Offset cannot be negative.");
-    }
-
-    if (limit < 1) {
-      throw new Error("Limit must be at least 1.");
-    }
-
+    if (offset < 0) throw new Error("Offset cannot be negative.");
+    if (limit < 1) throw new Error("Limit must be at least 1.");
     if (limit + offset > this.SEGMENT_SIZE) {
       throw new Error(
-        `Limit and Offset exceed segment boundary. Max limit + offset allowed is ${this.SEGMENT_SIZE}. Requested: ${
-          limit + offset
-        }`,
+        `Limit + Offset cannot exceed chunk size (${this.SEGMENT_SIZE}).`,
       );
     }
 
-    let whereClause = eq(userTags.userId, userId);
-    
-    // Sort Order depends on Direction
-    // NEXT: Newest -> Oldest (DESC)
-    // PREVIOUS: Oldest -> Newest (ASC) - Going back up the timeline
-    const sortOrder = direction === PaginationDirection.NEXT 
-      ? [desc(userTags.createdAt), desc(userTags.id)]
-      : [asc(userTags.createdAt), asc(userTags.id)];
+    // 1. Resolve Cursor (Timestamp lookup if chunkId is provided)
+    let whereClause = and(
+      eq(userTags.userId, userId),
+      eq(userTags.isDeleted, false),
+    );
 
-    let anchorTimestamp: Date | null = null;
-
-    if (anchorId) {
-      const [anchorTag] = await db
+    if (chunkId) {
+      const [cursorTag] = await db
         .select({ createdAt: userTags.createdAt })
         .from(userTags)
-        .where(and(eq(userTags.id, anchorId), eq(userTags.userId, userId)))
+        .where(and(eq(userTags.id, chunkId), eq(userTags.userId, userId)))
         .limit(1);
 
-      if (anchorTag) {
-        anchorTimestamp = anchorTag.createdAt;
-        
-        if (direction === PaginationDirection.NEXT) {
-           // Going DOWN: (date, id) <= (anchorDate, anchorId)
-           whereClause = and(
-             eq(userTags.userId, userId),
-             sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTimestamp}, ${anchorId})`
-           )!;
-        } else {
-           // Going UP: (date, id) > (anchorDate, anchorId)
-           // Strictly greater because we want the segment BEFORE this anchor
-           whereClause = and(
-             eq(userTags.userId, userId),
-             sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTimestamp}, ${anchorId})`
-           )!;
-        }
+      if (cursorTag) {
+        // Cursor Logic: Fetch items newer/older than this cursor.
+        // Default sort is Newest -> Oldest (DESC).
+        // So we want items <= cursorTimestamp
+        // If timestamps match, we use ID to break tie (lexicographical check)
+        whereClause = and(
+          eq(userTags.userId, userId),
+          eq(userTags.isDeleted, false),
+          sql`(${userTags.createdAt}, ${userTags.id}) <= (${cursorTag.createdAt}, ${chunkId})`,
+        )!;
       }
     }
 
-    // 2. Parallel Execution (Unified)
-    // We add a 3rd query: "Backward Scan" to find the Previous Segment Anchor (Stateless Back)
-    const [segmentIds, result, prevSegmentIds] = await Promise.all([
-      // A. Forward Map (Next Segment)
-      db
-        .select({ id: userTags.id })
-        .from(userTags)
-        .where(whereClause)
-        .orderBy(...sortOrder)
-        .limit(this.SEGMENT_SIZE + 1),
+    // 2. Fetch Chunk IDs (The "Map")
+    // Fetch one extra item to determine if there is a next chunk
+    const chunkIds = await db
+      .select({ id: userTags.id })
+      .from(userTags)
+      .where(whereClause)
+      .orderBy(desc(userTags.createdAt), desc(userTags.id))
+      .limit(this.SEGMENT_SIZE + 1);
 
-      // B. Data (Current Page)
-      db
+    // 3. Calculate Metadata
+    const totalFound = chunkIds.length;
+    const hasNextChunk = totalFound > this.SEGMENT_SIZE;
+    const chunkTotalItems = hasNextChunk ? this.SEGMENT_SIZE : totalFound;
+
+    // The start of the NEXT chunk is the (SEGMENT_SIZE + 1)th item
+    const nextChunkId = hasNextChunk
+      ? chunkIds[this.SEGMENT_SIZE]!.id
+      : null;
+
+    // 4. Determine Page IDs (In-Memory Slice)
+    // We only need the IDs for the requested page
+    const pageIds = chunkIds
+      .slice(offset, offset + limit)
+      .map((row) => row.id);
+
+    // 5. Fetch Full Data (if any IDs found)
+    let pageData: UserTag[] = [];
+    if (pageIds.length > 0) {
+      const rows = await db
         .select()
         .from(userTags)
-        .where(whereClause)
-        .orderBy(...sortOrder)
-        .limit(limit)
-        .offset(offset),
+        .where(inArray(userTags.id, pageIds));
 
-      // C. Backward Map (Previous Segment) - Only run if we have an anchor
-      // If no anchor, we are at top, so prev is null.
-      anchorId && anchorTimestamp
-        ? db
-            .select({ id: userTags.id })
-            .from(userTags)
-            .where(
-              and(
-                eq(userTags.userId, userId),
-                // Reverse the direction for the backward look
-                direction === PaginationDirection.NEXT
-                  ? sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTimestamp}, ${anchorId})` // Look Up
-                  : sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTimestamp}, ${anchorId})` // Look Down (Rare)
-              )
-            )
-            .orderBy(
-               // Reverse Sort
-               direction === PaginationDirection.NEXT 
-                 ? asc(userTags.createdAt) 
-                 : desc(userTags.createdAt)
-            )
-            .limit(this.SEGMENT_SIZE)
-        : Promise.resolve([]),
-    ]);
-
-    // Analyze Segment
-    const totalFound = segmentIds.length;
-    const hasNextSegment = totalFound > this.SEGMENT_SIZE;
-    const segmentItemCount = hasNextSegment ? this.SEGMENT_SIZE : totalFound;
-    
-    // Calculate Next/Prev Anchor
-    const nextAnchorId = hasNextSegment ? segmentIds[this.SEGMENT_SIZE]!.id : null;
-    
-    // Calculate Previous Segment Anchor (Stateless)
-    // If we found a full 2000 items going backwards, the last one is the start of that prev segment.
-    // If we found < 2000, it means we hit the "Start" of the list, so prevAnchor is null.
-    let prevAnchorId = null;
-    if (prevSegmentIds.length === this.SEGMENT_SIZE) {
-       prevAnchorId = prevSegmentIds[this.SEGMENT_SIZE - 1].id;
+      // Re-sort in memory because 'IN' clause does not guarantee order
+      // We want them in the same order as 'pageIds' (which came from the sorted chunk)
+      const idMap = new Map(rows.map((r) => [r.id, r]));
+      pageData = pageIds
+        .map((id) => idMap.get(id)!)
+        .filter((item) => item !== undefined) // Safety check
+        .map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          semantic: tag.semantic,
+          userId: tag.userId,
+          createdAt: tag.createdAt,
+          updatedAt: tag.updatedAt,
+        }));
     }
 
-    // Current Anchor
-    const currentAnchorId = segmentIds.length > 0 ? segmentIds[0]!.id : (anchorId || "");
-
-    const response: UserTag[] = result.map((tag) => ({
-      id: tag.id,
-      name: tag.name,
-      semantic: tag.semantic,
-      userId: tag.userId,
-      createdAt: tag.createdAt,
-      updatedAt: tag.updatedAt,
-    }));
-
     return {
-      data: response,
+      data: pageData,
       metadata: {
-        currentAnchorId,
-        nextAnchorId,
-        prevAnchorId, // Now explicitly returned!
-        segmentSize: this.SEGMENT_SIZE,
-        segmentItemCount,
-        hasNextSegment,
-        requestedDirection: direction,
-        requestedLimit: limit,
-        requestedOffset: offset,
+        nextChunkId,
+        chunkSize: this.SEGMENT_SIZE,
+        chunkTotalItems,
+        limit,
+        offset,
       },
     };
   }

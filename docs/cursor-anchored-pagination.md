@@ -1,99 +1,86 @@
-# Cursor-Anchored Pagination (Bi-Directional Segment Strategy)
+# Chunk-Based Cursor Pagination
 
 ## Overview
 
-This project uses a high-performance **Hybrid Pagination Strategy** designed for scalability and stateless navigation. It combines the user-friendly nature of **Offset Pagination** ("Page 1, 2, 3") with the database efficiency of **Cursor Pagination** (Infinite Scroll).
+This project uses a high-performance **Chunk-Based Two-Step Pagination Strategy**. It is designed to balance the performance of Cursor Pagination (O(1) access) with the flexibility of Offset Pagination (Page X of Y) within reasonable bounds.
 
-### The Core Problem
-1.  **Offset is slow:** `OFFSET 50000` requires the DB to scan and discard 50k rows.
-2.  **Cursor is rigid:** `WHERE id < last_id` is fast, but you can't jump to "Page 5".
-3.  **Stateful Back:** Usually, cursor pagination requires the frontend to remember history to go "Back".
+### The Core Concept
+Instead of fetching data page-by-page directly from the DB, we view data in large "Chunks" (e.g., 2,000 items).
 
-### The Solution: "Segments"
-We break the data into fixed-size windows called **Segments** (e.g., 2,000 items).
-*   **The Anchor:** A cursor (Timestamp + ID) that marks the *start* of a segment.
-*   **The Offset:** Within a segment, we use standard `OFFSET` (0-1999). This is fast because the offset is bounded.
-*   **Stateless Navigation:** The backend calculates both `nextAnchorId` AND `prevAnchorId` on every request, allowing deep linking and full traversal without client history.
+1.  **The Chunk:** A large window of data identified by a cursor (`chunkId`).
+2.  **The Page:** A small slice (e.g., 20 items) *within* that chunk, identified by an `offset`.
+
+### The Problem it Solves
+*   **Deep Offset Slowness:** Standard `OFFSET 5000` is slow because the DB reads and discards rows.
+*   **Data Over-fetching:** Cursor pagination often makes "jumping" to page 5 difficult.
+
+### The Solution
+We use a **Two-Step Fetch**:
+1.  **Map the Chunk:** We efficiently fetch *only the IDs* for the entire chunk (e.g., 2,000 IDs) using a cursor. This is extremely fast (Index Only Scan).
+2.  **Fetch the Page:** We slice that list of IDs in memory (e.g., get IDs at index 40-60) and then fetch the *full data* for only those 20 rows.
 
 ---
 
 ## Technical Implementation
 
 ### 1. The Request
-The frontend requests a specific page *relative* to a known anchor.
+The frontend requests a page relative to a `chunkId`.
 
 ```typescript
 interface PaginationRequest {
-  limit: number;           // Items per page (e.g., 20)
-  offset: number;          // Skip relative to anchor (e.g., 80 = Page 5)
-  anchorId?: string;       // The ID starting this segment (null = Start)
-  direction: 'NEXT' | 'PREVIOUS'; // Are we looking Forward or Backward?
+  limit: number;     // Items per page (e.g., 20)
+  offset: number;    // Skip relative to the start of the chunk (e.g., 40)
+  chunkId?: string;  // The ID starting this chunk (null = Start of list)
 }
 ```
 
-### 2. The Database Logic
-We run **three parallel queries** to map the territory.
+### 2. The Execution Flow (`TagService.ts`)
 
-#### Query A: Forward Map (Next Segment)
-Fetches IDs of the next 2,001 items (descending).
-*   Determines `segmentItemCount`.
-*   Finds `nextAnchorId`.
+#### Step A: Resolve Cursor
+If a `chunkId` is provided, we look up its creation timestamp to establish the cursor position (`WHERE (created_at, id) <= (cursor_date, cursor_id)`).
 
-#### Query B: Backward Map (Previous Segment)
-Fetches IDs of the *previous* 2,000 items (ascending).
-*   *Condition:* Only runs if `anchorId` is present.
-*   Finds `prevAnchorId` (the start of the previous block).
+#### Step B: Fetch Chunk IDs (The "Map")
+We fetch `SEGMENT_SIZE + 1` IDs.
+*   **Why +1?** To detect if there is a "Next Chunk" available.
+*   **Performance:** Since we only select `id`, this hits the database index directly without touching the heap (table data).
 
-#### Query C: Data Fetch
-Fetches the actual `limit` (20) rows requested for the UI.
+#### Step C: In-Memory Slicing
+We calculate which IDs belong to the requested page:
+`pageIds = chunkIds.slice(offset, offset + limit)`
+
+#### Step D: Fetch Data
+We run a final query: `SELECT * FROM tags WHERE id IN (pageIds)`.
+*   The results are re-sorted in memory to match the order of `pageIds`.
 
 ---
 
 ## Response Structure
 
 ```typescript
-interface AnchorSegmentPaginationData {
-  data: T[];
+export type ChunkPaginationData<T> = {
+  data: T[]; // The actual 20 items for the UI
   metadata: {
-    currentAnchorId: string; 
-    nextAnchorId: string | null; // Forward pointer
-    prevAnchorId: string | null; // Backward pointer (New!)
+    nextChunkId: string | null; // Pointer to the start of the NEXT 2000 items
     
-    segmentItemCount: number;    // Items in current segment
-    segmentSize: number; 
+    chunkSize: number;       // e.g., 2000
+    chunkTotalItems: number; // How many items are actually in this chunk (e.g., 1543)
+
+    limit: number;  // Echoed
+    offset: number; // Echoed
   };
-}
+};
 ```
 
----
+## Frontend Guide
 
-## Frontend Integration Guide
-
-### 1. Navigation (Next/Prev Page)
-Just change the `offset`.
+### Standard Pagination (Next Page)
+Increment the `offset`.
 *   **Page 1:** `offset: 0`
 *   **Page 2:** `offset: 20`
-*   *Invariant:* `offset` must never exceed `segmentSize` (2000).
+*   **Constraint:** `offset + limit` must not exceed `chunkSize` (2000).
 
-### 2. Navigation (Next Segment)
-When user hits end of segment (Page 100):
-*   **Action:** Request `page: 1` (`offset: 0`) using `anchorId: metadata.nextAnchorId`.
-
-### 3. Navigation (Previous Segment)
-When user hits start of segment (Page 1) and wants to go back:
-*   **Action:** Request `page: 1` (`offset: 0`) using `anchorId: metadata.prevAnchorId`.
-*   *Note:* No history stack needed!
-
----
-
-## Pros & Cons
-
-### ✅ Pros
-1.  **Stateless:** Deep link to any segment and still go "Back".
-2.  **O(1) Performance:** Loading Page 10,000 is as fast as Page 1.
-3.  **UX:** Users get "Page Numbers" (1-100).
-4.  **Safety:** Hard limits prevent "Deep Offset" attacks.
-
-### ⚠️ Cons
-1.  **DB Load:** We run 3 queries instead of 1. However, 2 of them are lightweight index scans.
-2.  **Approximate Totals:** We don't show "Total 50,000 items", only the local count.
+### Chunk Navigation (Next Segment)
+When the user reaches the end of the current chunk (e.g., Page 100):
+1.  Check `metadata.nextChunkId`.
+2.  If present, request `offset: 0` with `chunkId: metadata.nextChunkId`.
+3.  Reset local page count to 1.

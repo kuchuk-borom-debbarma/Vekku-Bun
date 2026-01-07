@@ -1,7 +1,4 @@
-import type {
-  AnchorSegmentPaginationData,
-  PaginationDirection,
-} from "../util/Pagination";
+import type { ChunkPaginationData } from "../util/Pagination";
 import { TagService } from "./_internal/TagService";
 
 export type UserTag = {
@@ -25,17 +22,16 @@ export abstract class ITagService {
     userId: string;
     name?: string;
     semantic?: string;
-  }): Promise<UserTag>;
+  }): Promise<UserTag | null>;
 
   abstract deleteTag(data: { id: string; userId: string }): Promise<boolean>;
 
   abstract getTagsOfUser(data: {
     userId: string;
-    anchorId?: string;
+    chunkId?: string;
     limit?: number;
     offset?: number;
-    direction?: PaginationDirection;
-  }): Promise<AnchorSegmentPaginationData<UserTag>>;
+  }): Promise<ChunkPaginationData<UserTag>>;
 }
 
 export const tagService: ITagService = new TagService();
