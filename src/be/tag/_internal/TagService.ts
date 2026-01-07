@@ -165,7 +165,7 @@ export class TagService extends ITagService {
     // We only need the IDs for the requested page
     const pageIds = chunkIds
       .slice(offset, offset + limit)
-      .map((row) => row.id);
+      .map((row: { id: string }) => row.id);
 
     // 5. Fetch Full Data (if any IDs found)
     let pageData: UserTag[] = [];
@@ -177,11 +177,11 @@ export class TagService extends ITagService {
 
       // Re-sort in memory because 'IN' clause does not guarantee order
       // We want them in the same order as 'pageIds' (which came from the sorted chunk)
-      const idMap = new Map(rows.map((r) => [r.id, r]));
+      const idMap = new Map(rows.map((r: typeof rows[number]) => [r.id, r]));
       pageData = pageIds
-        .map((id) => idMap.get(id)!)
-        .filter((item) => item !== undefined) // Safety check
-        .map((tag) => ({
+        .map((id: string) => idMap.get(id)!)
+        .filter((item: typeof rows[number] | undefined) => item !== undefined) // Safety check
+        .map((tag: typeof rows[number]) => ({
           id: tag.id,
           name: tag.name,
           semantic: tag.semantic,

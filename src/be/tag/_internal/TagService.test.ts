@@ -10,7 +10,7 @@ mock.module("../../util/UUID", () => ({
 // We use a modular mock for Drizzle to simulate the chaining API
 // e.g. db.insert().values().onConflictDoUpdate().returning()
 const dbMocks = {
-  returning: mock(() => []),
+  returning: mock(() => [] as any[]),
   onConflictDoUpdate: mock(() => ({ returning: dbMocks.returning })),
   values: mock(() => ({ onConflictDoUpdate: dbMocks.onConflictDoUpdate })),
   where: mock(() => {
@@ -33,7 +33,7 @@ const dbMocks = {
       limit: dbMocks.limit 
     }))
   })),
-  limit: mock(() => []),
+  limit: mock(() => [] as any[]),
   select: mock(() => ({ from: dbMocks.from })),
   insert: mock(() => ({ values: dbMocks.values })),
   update: mock(() => ({ set: dbMocks.set })),
@@ -129,7 +129,7 @@ describe("TagService", () => {
       const result = await service.getTagsOfUser({ userId: "u1", limit: 10 });
 
       expect(result.data).toHaveLength(2);
-      expect(result.data[0].id).toBe("tag-1");
+      expect(result.data[0]?.id).toBe("tag-1");
       expect(result.metadata.chunkTotalItems).toBe(2);
     });
 
