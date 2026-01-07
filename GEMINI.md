@@ -9,8 +9,8 @@
 -   **Language:** TypeScript
 -   **Database:** PostgreSQL (Neon Serverless)
 -   **ORM:** Drizzle ORM
--   **Auth:** Better Auth
--   **Utilities:** `uuid` (Standard & v5 Deterministic)
+-   **Auth:** Custom (JWT + Bun Native Password Hashing)
+-   **Utilities:** `uuid` (Standard & v5 Deterministic), `hono/jwt`
 
 ## Architecture & Features
 
@@ -36,6 +36,17 @@ To avoid circular dependencies between abstractions and implementations, service
 *   `api.ts`: Defines interfaces and types only. No implementation imports.
 *   `_internal/Service.ts`: Implements the interface.
 *   `index.ts`: The entry point. Imports both and exports the singleton instance (e.g., `export const tagService = new TagService()`).
+
+### 4. Custom Authentication
+A lightweight, secure authentication system replacing external providers.
+*   **Flow:**
+    1.  **Registration:** Two-step process. `triggerEmailVerification` sends OTP -> `verifyEmail` validates OTP, hashes password (Argon2 via `Bun.password`), creates user, and cleans up verifications.
+    2.  **Login:** Validates credentials and issues `accessToken` (15m) and `refreshToken` (7d).
+    3.  **Token Rotation:** `refreshToken` endpoint verifies the refresh token and issues a new pair.
+*   **Security:**
+    *   Passwords hashed using Bun's native optimized implementation.
+    *   JWTs signed using `hono/jwt`.
+    *   Strict cleaning of verification records to prevent reuse or clutter.
 
 ## Building and Running
 
