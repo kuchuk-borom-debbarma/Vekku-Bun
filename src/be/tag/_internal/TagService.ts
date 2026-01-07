@@ -22,6 +22,15 @@ export class TagService extends ITagService {
           id: generateUUID([data.name, data.userId]),
         },
       ])
+      .onConflictDoUpdate({
+        target: userTags.id,
+        set: {
+          isDeleted: false,
+          updatedAt: new Date(),
+          name: data.name,
+          semantic: data.semantic,
+        },
+      })
       .returning();
     const tag = result[0];
     if (tag) {
@@ -101,9 +110,9 @@ export class TagService extends ITagService {
 
     if (offset < 0) throw new Error("Offset cannot be negative.");
     if (limit < 1) throw new Error("Limit must be at least 1.");
-    if (limit + offset > this.SEGMENT_SIZE) {
+    if (offset >= this.SEGMENT_SIZE) {
       throw new Error(
-        `Limit + Offset cannot exceed chunk size (${this.SEGMENT_SIZE}).`,
+        `Offset (${offset}) cannot equal or exceed chunk size (${this.SEGMENT_SIZE}).`,
       );
     }
 
