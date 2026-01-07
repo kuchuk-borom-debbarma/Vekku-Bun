@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { api } from "../lib/api";
 import { useNavigate } from "react-router-dom";
+import { Layout } from "../components/Layout";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 
 export const Auth = () => {
   const navigate = useNavigate();
@@ -23,7 +26,7 @@ export const Auth = () => {
       localStorage.setItem("refreshToken", data.refreshToken);
       navigate("/");
     } catch (err) {
-      alert("Login failed: " + (err as any).response?.data?.message || (err as any).message);
+      alert("Login failed: " + ((err as any).response?.data?.message || (err as any).message));
     }
   };
 
@@ -34,7 +37,7 @@ export const Auth = () => {
       setVerificationToken(data.token);
       setRegStep("OTP");
     } catch (err) {
-        alert("Verification failed: " + (err as any).response?.data?.message || (err as any).message);
+        alert("Verification failed: " + ((err as any).response?.data?.message || (err as any).message));
     }
   };
 
@@ -52,96 +55,95 @@ export const Auth = () => {
       setOtp("");
       setPassword("");
     } catch (err) {
-        alert("Registration failed: " + (err as any).response?.data?.message || (err as any).message);
+        alert("Registration failed: " + ((err as any).response?.data?.message || (err as any).message));
     }
   };
 
   return (
-    <div style={{ maxWidth: "400px", margin: "2rem auto", padding: "1rem", border: "1px solid #ccc", borderRadius: "8px" }}>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: "1rem" }}>
-        <button 
-            style={{ fontWeight: mode === "LOGIN" ? "bold" : "normal", marginRight: "1rem" }} 
-            onClick={() => setMode("LOGIN")}
-        >
-            Login
-        </button>
-        <button 
-            style={{ fontWeight: mode === "REGISTER" ? "bold" : "normal" }} 
-            onClick={() => setMode("REGISTER")}
-        >
-            Register
-        </button>
-      </div>
-
-      {mode === "LOGIN" ? (
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <h2>Login</h2>
-          <input 
-            type="email" 
-            placeholder="Email" 
-            value={email} 
-            onChange={e => setEmail(e.target.value)} 
-            required 
-            style={{ padding: "0.5rem" }}
-          />
-          <input 
-            type="password" 
-            placeholder="Password" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-            required 
-            style={{ padding: "0.5rem" }}
-          />
-          <button type="submit" style={{ padding: "0.5rem", background: "blue", color: "white", border: "none" }}>
-            Login
-          </button>
-        </form>
-      ) : (
-        <div>
-          <h2>Register</h2>
-          {regStep === "EMAIL" ? (
-            <form onSubmit={handleTriggerVerification} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <input 
-                type="email" 
-                placeholder="Email" 
-                value={email} 
-                onChange={e => setEmail(e.target.value)} 
-                required 
-                style={{ padding: "0.5rem" }}
-              />
-              <button type="submit" style={{ padding: "0.5rem", background: "green", color: "white", border: "none" }}>
-                Send Verification OTP
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleCompleteRegistration} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <p>OTP sent to {email} (Use 123456 for demo)</p>
-              <input 
-                type="text" 
-                placeholder="OTP" 
-                value={otp} 
-                onChange={e => setOtp(e.target.value)} 
-                required 
-                style={{ padding: "0.5rem" }}
-              />
-              <input 
-                type="password" 
-                placeholder="Choose Password" 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-                required 
-                style={{ padding: "0.5rem" }}
-              />
-              <button type="submit" style={{ padding: "0.5rem", background: "green", color: "white", border: "none" }}>
-                Complete Registration
-              </button>
-              <button type="button" onClick={() => setRegStep("EMAIL")} style={{ marginTop: "0.5rem" }}>
-                Back
-              </button>
-            </form>
-          )}
+    <Layout>
+      <div style={{ maxWidth: "400px", margin: "0 auto", border: "1px solid #eee", padding: "2rem", borderRadius: "8px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "2rem", gap: "1rem" }}>
+          <Button 
+              variant={mode === "LOGIN" ? "primary" : "secondary"}
+              onClick={() => setMode("LOGIN")}
+          >
+              Login
+          </Button>
+          <Button 
+              variant={mode === "REGISTER" ? "primary" : "secondary"}
+              onClick={() => setMode("REGISTER")}
+          >
+              Register
+          </Button>
         </div>
-      )}
-    </div>
+
+        {mode === "LOGIN" ? (
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <h2 style={{ textAlign: "center", margin: 0 }}>Welcome Back</h2>
+            <Input 
+              type="email" 
+              placeholder="Email" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              required 
+            />
+            <Input 
+              type="password" 
+              placeholder="Password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              required 
+            />
+            <Button type="submit" style={{ marginTop: "1rem" }}>
+              Login
+            </Button>
+          </form>
+        ) : (
+          <div>
+            <h2 style={{ textAlign: "center", margin: "0 0 1rem 0" }}>Create Account</h2>
+            {regStep === "EMAIL" ? (
+              <form onSubmit={handleTriggerVerification} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <Input 
+                  type="email" 
+                  placeholder="Email" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  required 
+                />
+                <Button type="submit" style={{ marginTop: "1rem" }}>
+                  Send Verification OTP
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleCompleteRegistration} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <p style={{ fontSize: "0.9rem", color: "#666", textAlign: "center" }}>
+                    OTP sent to {email}<br/>(Use 123456 for demo)
+                </p>
+                <Input 
+                  type="text" 
+                  placeholder="OTP" 
+                  value={otp} 
+                  onChange={e => setOtp(e.target.value)} 
+                  required 
+                />
+                <Input 
+                  type="password" 
+                  placeholder="Choose Password" 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  required 
+                />
+                <Button type="submit" style={{ marginTop: "1rem" }}>
+                  Complete Registration
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setRegStep("EMAIL")}>
+                  Back
+                </Button>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 };

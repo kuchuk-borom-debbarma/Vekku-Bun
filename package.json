@@ -2,7 +2,10 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "build:fe": "bun build ./src/fe/index.html --outdir ./dist",
-    "dev:all": "bun run build:fe --watch & bun run dev"
+    "dev:all": "bun run build:fe --watch & bun run dev",
+    "db:push": "bun x drizzle-kit push",
+    "db:generate": "bun x drizzle-kit generate",
+    "db:studio": "bun x drizzle-kit studio"
   },
   "name": "vekku-server-bun",
   "module": "index.ts",

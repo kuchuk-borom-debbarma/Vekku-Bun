@@ -19,10 +19,26 @@ cp .env.example .env
 ```
 Update `.env` with your `DATABASE_URL` and a secure `JWT_SECRET`.
 
-## 3. Database Setup
-Push the schema to your database using Drizzle Kit:
+## 3. Database Management
+We use Drizzle ORM for database interactions.
+
+### Sync Schema (Development)
+Quickly push schema changes to the database (prototyping/dev):
 ```bash
-bun x drizzle-kit push
+bun run db:push
+```
+
+### Migrations (Production)
+Generate SQL migration files based on schema changes:
+```bash
+bun run db:generate
+```
+*Note: You will need to run these migrations against your production DB using a migration runner.*
+
+### Visual Editor
+Open Drizzle Studio to browse and edit your data:
+```bash
+bun run db:studio
 ```
 
 ## 4. Build the Frontend

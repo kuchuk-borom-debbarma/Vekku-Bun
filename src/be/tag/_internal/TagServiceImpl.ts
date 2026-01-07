@@ -5,7 +5,7 @@ import { generateUUID } from "../../util/UUID";
 import { ITagService, type UserTag } from "../api";
 import { userTags } from "./entities/UserTagEntity";
 
-export class TagService extends ITagService {
+export class TagServiceImpl extends ITagService {
   SEGMENT_SIZE = 2000;
   override async createTag(data: {
     name: string;

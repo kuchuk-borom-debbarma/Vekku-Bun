@@ -48,15 +48,15 @@ mock.module("../../infra/Drizzle", () => ({
 }));
 
 // IMPORT SERVICE AFTER MOCKS
-import { TagService } from "./TagService";
+import { TagServiceImpl } from "./TagServiceImpl";
 
 // --- Tests ---
 
-describe("TagService", () => {
-  let service: TagService;
+describe("TagServiceImpl", () => {
+  let service: TagServiceImpl;
 
   beforeEach(() => {
-    service = new TagService();
+    service = new TagServiceImpl();
     // Reset all mock call history and implementations
     Object.values(dbMocks).forEach(m => m.mockClear());
     dbMocks.returning.mockImplementation(() => []);
