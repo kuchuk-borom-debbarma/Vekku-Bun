@@ -4,75 +4,64 @@ Vekku-Bun uses a domain-driven, encapsulated routing system built on top of **Ho
 
 ## Architecture
 
-Routes are designed to be private to their respective domains. We follow a "Mounting Pattern" where the main application passes a Router instance to the domain, and the domain attaches its routes.
+Routes are managed by **Controllers** within each domain. These controllers are registered in the Dependency Injection container, allowing them to accept injected services.
 
 ### 1. Structure
-Each domain (e.g., `user`, `tag`) contains its routing logic within an `_internal` directory:
+Each domain (e.g., `user`, `tag`) contains its routing logic within a Controller class in `_internal`:
 
 ```text
 src/be/domain/
 ├── api.ts              # Abstract interface
-├── index.ts            # Public entry point (Service Registration + Route Mounting)
+├── index.ts            # Public entry point (Service + Controller Registration)
 └── _internal/
     ├── ServiceImpl.ts  # Logic implementation
-    └── routes.ts       # Hono route definitions
+    └── UserController.ts # Route definitions (Controller)
 ```
 
-### 2. The Mounting Pattern
-Instead of the domain creating its own Router instance, it exports a function that accepts a Router and the Service.
+### 2. The Controller Pattern
+The Controller class accepts the Service via constructor injection and exposes a `routes()` method that returns a configured Hono router.
 
 ```typescript
-// src/be/domain/_internal/routes.ts
-export const registerDomainRoutes = (router: Hono, service: IDomainService) => {
-  router.post("/", async (c) => {
-    const data = await c.req.json();
-    const result = await service.doSomething(data);
-    return c.json(result);
-  });
-};
+// src/be/user/_internal/UserController.ts
+export class UserController {
+  constructor({ authService }: Deps) {
+    this.authService = authService;
+  }
+
+  routes(): Hono {
+    const router = new Hono();
+    router.post("/login", ...);
+    return router;
+  }
+}
 ```
 
 ### 3. Public Entry Point (index.ts)
-The domain's `index.ts` is responsible for resolving the service from the Dependency Injection container and calling the internal registration function.
+The domain's `index.ts` registers both the Service and the Controller into the Awilix container.
 
 ```typescript
-// src/be/domain/index.ts
-import { registerDomainRoutes } from "./_internal/routes";
+// src/be/user/index.ts
+import { UserController } from "./_internal/UserController";
 
-// 1. Register Services (for DI)
-export const registerDomain = (container: AwilixContainer) => {
+export const registerUserDomain = (container: AwilixContainer) => {
   container.register({
-    domainService: asClass(DomainServiceImpl).singleton(),
+    authService: asClass(AuthServiceImpl).singleton(),
+    userController: asClass(UserController).singleton(),
   });
-};
-
-// 2. Mount Routes (for HTTP)
-export const mountDomainRoutes = (router: Hono, container: AwilixContainer) => {
-  const service = container.resolve<IDomainService>("domainService");
-  registerDomainRoutes(router, service);
 };
 ```
 
 ### 4. Global Mounting
-The main application creates the router instances and hands them to the domains.
+The main application simply resolves the controllers and mounts their routes.
 
 ```typescript
 // src/index.ts
-import { mountDomainRoutes } from "./be/domain";
-
-const app = new Hono();
-const container = createAppContainer();
-
-// Create sub-app
-const domainApp = new Hono();
-mountDomainRoutes(domainApp, container);
-
-// Mount sub-app
-app.route("/api/domain", domainApp);
+const userController = container.resolve<UserController>("userController");
+app.route("/api/user", userController.routes());
 ```
 
 ## Benefits
-- **Inversion of Control:** The main app controls the Router creation (middleware, settings).
-- **Separation of Concerns:** The DI container manages *Services*, not *Routers*.
-- **Opaque Internals:** Route implementation details remain hidden in `_internal`.
-- **Testability:** Routes can be tested by passing a mock Hono instance and mock Service.
+- **Full Dependency Injection:** Controllers are fully managed by the container.
+- **Encapsulation:** Route logic is hidden within the Controller class.
+- **Standardization:** Follows a familiar MVC-like structure (Service -> Controller -> Router).
+- **Testability:** Controllers can be unit tested by injecting mock services.

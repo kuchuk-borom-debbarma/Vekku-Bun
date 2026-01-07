@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { createAppContainer } from "./be/infra/di";
-import { mountUserRoutes } from "./be/user";
-import { mountTagRoutes } from "./be/tag";
+import type { UserController } from "./be/user/_internal/UserController";
+import type { TagController } from "./be/tag/_internal/TagController";
 
 const app = new Hono();
 
@@ -15,14 +15,12 @@ app.use("/api/*", cors());
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-// Mount Domain Routes
-const userApp = new Hono();
-mountUserRoutes(userApp, container);
-app.route("/api/user", userApp);
+// Mount Domain Routes via Controllers
+const userController = container.resolve<UserController>("userController");
+app.route("/api/user", userController.routes());
 
-const tagApp = new Hono();
-mountTagRoutes(tagApp, container);
-app.route("/api/tag", tagApp);
+const tagController = container.resolve<TagController>("tagController");
+app.route("/api/tag", tagController.routes());
 
 // Serve static frontend only if built (useful for local dev/testing)
 app.use("/*", serveStatic({ root: "./dist" }));
