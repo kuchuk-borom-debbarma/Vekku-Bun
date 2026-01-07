@@ -1,5 +1,4 @@
 import type { ChunkPaginationData } from "../util/Pagination";
-import { TagService } from "./_internal/TagService";
 
 export type UserTag = {
   id: string;
@@ -33,5 +32,3 @@ export abstract class ITagService {
     offset?: number;
   }): Promise<ChunkPaginationData<UserTag>>;
 }
-
-export const tagService: ITagService = new TagService();

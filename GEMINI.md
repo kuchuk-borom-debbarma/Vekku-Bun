@@ -31,6 +31,12 @@ The project implements a **Chunk-Based Two-Step Pagination** strategy to solve t
 *   **Strategy:** Uses `uuid` library. Supports standard v4 and deterministic v5 (Name-based) generation.
 *   **Usage:** Tags use deterministic UUIDs generated from `[tagName, userId]` to ensure uniqueness per user-tag pair without extra DB lookups.
 
+### 3. Circular Dependency Prevention (Three-File Pattern)
+To avoid circular dependencies between abstractions and implementations, services follow a strict three-file structure:
+*   `api.ts`: Defines interfaces and types only. No implementation imports.
+*   `_internal/Service.ts`: Implements the interface.
+*   `index.ts`: The entry point. Imports both and exports the singleton instance (e.g., `export const tagService = new TagService()`).
+
 ## Building and Running
 
 ### Prerequisites
@@ -41,13 +47,15 @@ The project implements a **Chunk-Based Two-Step Pagination** strategy to solve t
 | Command | Description |
 | :--- | :--- |
 | `bun install` | Install dependencies. |
-| `bun run dev` | Start the development server (check `package.json` scripts). |
+| `bun test` | Run unit tests (uses `bun:test`). |
+| `bun run dev` | Start the development server. |
 | `bun run build` | Build the project. |
 
 ## Development Conventions
 
-*   **Database Access:** All DB interactions go through Drizzle.
+*   **Database Access:** All DB interactions go through Drizzle. `src/be/infra/Drizzle.ts` is designed to be resilient during tests by checking for `DATABASE_URL`.
 *   **Entities:** Defined in `src/be/**/_internal/entities/`.
-*   **Services:** Business logic resides in `Service` classes extending abstract interfaces.
+*   **Services:** Business logic resides in `Service` classes extending abstract interfaces. Use the **Three-File Pattern** for all new services.
+*   **Testing:** Unit tests reside alongside implementation (e.g., `TagService.test.ts`). Use `bun:test` and Chain Mocks for Drizzle's fluent API.
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.
 *   **Type Safety:** Strict TypeScript usage with Drizzle's inferred types.
