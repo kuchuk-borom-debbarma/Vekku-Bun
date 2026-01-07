@@ -92,6 +92,8 @@ export class TagService extends ITagService {
       ? [desc(userTags.createdAt), desc(userTags.id)]
       : [asc(userTags.createdAt), asc(userTags.id)];
 
+    let anchorTimestamp: Date | null = null;
+
     if (anchorId) {
       const [anchorTag] = await db
         .select({ createdAt: userTags.createdAt })
@@ -100,18 +102,20 @@ export class TagService extends ITagService {
         .limit(1);
 
       if (anchorTag) {
+        anchorTimestamp = anchorTag.createdAt;
+        
         if (direction === PaginationDirection.NEXT) {
            // Going DOWN: (date, id) <= (anchorDate, anchorId)
            whereClause = and(
              eq(userTags.userId, userId),
-             sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTag.createdAt}, ${anchorId})`
+             sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTimestamp}, ${anchorId})`
            )!;
         } else {
            // Going UP: (date, id) > (anchorDate, anchorId)
            // Strictly greater because we want the segment BEFORE this anchor
            whereClause = and(
              eq(userTags.userId, userId),
-             sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTag.createdAt}, ${anchorId})`
+             sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTimestamp}, ${anchorId})`
            )!;
         }
       }
@@ -139,7 +143,7 @@ export class TagService extends ITagService {
 
       // C. Backward Map (Previous Segment) - Only run if we have an anchor
       // If no anchor, we are at top, so prev is null.
-      anchorId
+      anchorId && anchorTimestamp
         ? db
             .select({ id: userTags.id })
             .from(userTags)
@@ -148,8 +152,8 @@ export class TagService extends ITagService {
                 eq(userTags.userId, userId),
                 // Reverse the direction for the backward look
                 direction === PaginationDirection.NEXT
-                  ? sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTag.createdAt}, ${anchorId})` // Look Up
-                  : sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTag.createdAt}, ${anchorId})` // Look Down (Rare)
+                  ? sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTimestamp}, ${anchorId})` // Look Up
+                  : sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTimestamp}, ${anchorId})` // Look Down (Rare)
               )
             )
             .orderBy(
