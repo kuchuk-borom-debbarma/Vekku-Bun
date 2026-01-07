@@ -77,17 +77,16 @@ export class AuthServiceImpl extends IAuthService {
 
     const hashedPassword = await Bun.password.hash(password);
 
-    await db.transaction(async (tx) => {
-      await tx.insert(user).values({
+    await db.batch([
+      db.insert(user).values({
         id: generateUUID(),
         username: verification.email,
         password: hashedPassword,
         createdAt: new Date(),
         is_deleted: false,
-      });
-
-      await tx.delete(userVerification).where(eq(userVerification.email, verification.email));
-    });
+      }),
+      db.delete(userVerification).where(eq(userVerification.email, verification.email)),
+    ]);
 
     return true;
   }
