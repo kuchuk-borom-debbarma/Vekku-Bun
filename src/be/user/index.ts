@@ -1,4 +1,4 @@
-import { BetterAuthService } from "./_internal/BetterAuthService";
+import { AuthServiceImpl } from "./_internal/AuthServiceImpl";
 import type { IAuthService } from "./api";
 
-export const authService: IAuthService = new BetterAuthService();
+export const authService: IAuthService = new AuthServiceImpl();
