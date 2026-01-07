@@ -4,6 +4,7 @@ export type AnchorSegmentPaginationData<T> = {
     //Server generated pagination metadata
     currentAnchorId: string | null;
     nextAnchorId: string | null; //null if there is no next segment
+    prevAnchorId: string | null; //null if there is no previous segment (start of list)
     segmentSize: number; //size of the segment requested
     segmentItemCount: number; //number of items in the current segment. Max is segmentSize
     hasNextSegment: boolean;

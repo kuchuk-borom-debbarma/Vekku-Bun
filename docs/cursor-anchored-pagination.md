@@ -1,18 +1,19 @@
-# Cursor-Anchored Pagination (Segmented Window Strategy)
+# Cursor-Anchored Pagination (Bi-Directional Segment Strategy)
 
 ## Overview
 
-This project uses a high-performance **Hybrid Pagination Strategy** designed for scalability. It combines the user-friendly nature of **Offset Pagination** ("Page 1, 2, 3") with the database efficiency of **Cursor Pagination** (Infinite Scroll).
+This project uses a high-performance **Hybrid Pagination Strategy** designed for scalability and stateless navigation. It combines the user-friendly nature of **Offset Pagination** ("Page 1, 2, 3") with the database efficiency of **Cursor Pagination** (Infinite Scroll).
 
 ### The Core Problem
 1.  **Offset is slow:** `OFFSET 50000` requires the DB to scan and discard 50k rows.
 2.  **Cursor is rigid:** `WHERE id < last_id` is fast, but you can't jump to "Page 5".
+3.  **Stateful Back:** Usually, cursor pagination requires the frontend to remember history to go "Back".
 
 ### The Solution: "Segments"
 We break the data into fixed-size windows called **Segments** (e.g., 2,000 items).
 *   **The Anchor:** A cursor (Timestamp + ID) that marks the *start* of a segment.
 *   **The Offset:** Within a segment, we use standard `OFFSET` (0-1999). This is fast because the offset is bounded.
-*   **The Navigation:** To see item #2001, we switch to a **New Anchor**.
+*   **Stateless Navigation:** The backend calculates both `nextAnchorId` AND `prevAnchorId` on every request, allowing deep linking and full traversal without client history.
 
 ---
 
@@ -31,19 +32,20 @@ interface PaginationRequest {
 ```
 
 ### 2. The Database Logic
-We run two parallel queries to map the segment and fetch the user's data.
+We run **three parallel queries** to map the territory.
 
-#### Step A: Resolve Anchor
-If an `anchorId` is provided, we fetch its `createdAt` timestamp to enable a precise cursor comparison.
+#### Query A: Forward Map (Next Segment)
+Fetches IDs of the next 2,001 items (descending).
+*   Determines `segmentItemCount`.
+*   Finds `nextAnchorId`.
 
-*   **NEXT (Forward):** `WHERE (created_at, id) <= (anchor_date, anchor_id)`
-*   **PREVIOUS (Backward):** `WHERE (created_at, id) > (anchor_date, anchor_id)`
+#### Query B: Backward Map (Previous Segment)
+Fetches IDs of the *previous* 2,000 items (ascending).
+*   *Condition:* Only runs if `anchorId` is present.
+*   Finds `prevAnchorId` (the start of the previous block).
 
-#### Step B: Parallel Execution
-1.  **Segment Map (Lightweight):** Fetch the IDs of the next 2,001 items.
-    *   *Purpose:* Calculates accurate `segmentItemCount` (e.g., "Page 1 of 42") and finds the `nextAnchorId`.
-2.  **Data Fetch (Targeted):** Fetch only the `limit` (20) rows requested.
-    *   *Purpose:* Returns the actual user data.
+#### Query C: Data Fetch
+Fetches the actual `limit` (20) rows requested for the UI.
 
 ---
 
@@ -53,16 +55,11 @@ If an `anchorId` is provided, we fetch its `createdAt` timestamp to enable a pre
 interface AnchorSegmentPaginationData {
   data: T[];
   metadata: {
-    // The anchor used for this view. (Save this!)
     currentAnchorId: string; 
+    nextAnchorId: string | null; // Forward pointer
+    prevAnchorId: string | null; // Backward pointer (New!)
     
-    // The anchor to use if the user clicks "Next Segment"
-    nextAnchorId: string | null; 
-    
-    // Total items in this specific segment (Max: 2000)
-    segmentItemCount: number; 
-    
-    // Configured max size
+    segmentItemCount: number;    // Items in current segment
     segmentSize: number; 
   };
 }
@@ -76,34 +73,27 @@ interface AnchorSegmentPaginationData {
 Just change the `offset`.
 *   **Page 1:** `offset: 0`
 *   **Page 2:** `offset: 20`
-*   **Page 5:** `offset: 80`
 *   *Invariant:* `offset` must never exceed `segmentSize` (2000).
 
 ### 2. Navigation (Next Segment)
-When the user reaches the end of the segment (Page 100), check `metadata.nextAnchorId`.
-*   **Action:** Request `page: 1` (`offset: 0`) using `anchorId: nextAnchorId`.
-*   **State:** Push the *old* `currentAnchorId` to a local **History Stack**.
+When user hits end of segment (Page 100):
+*   **Action:** Request `page: 1` (`offset: 0`) using `anchorId: metadata.nextAnchorId`.
 
 ### 3. Navigation (Previous Segment)
-Do **NOT** ask the backend for "Previous Segment ID".
-*   **Action:** Pop the last anchor from your **History Stack**.
-*   **Request:** `page: 1` (`offset: 0`) using the popped anchor.
-
-### 4. Deep Linking (Limitations)
-If a user lands directly on `?anchorId=xyz`, they are "parachuted" into the list.
-*   **Can they go Forward?** Yes (`nextAnchorId` is provided).
-*   **Can they go Back?** No. The history stack is empty.
-    *   *Solution:* Provide a "Back to Start" button (Link to `anchorId=null`).
+When user hits start of segment (Page 1) and wants to go back:
+*   **Action:** Request `page: 1` (`offset: 0`) using `anchorId: metadata.prevAnchorId`.
+*   *Note:* No history stack needed!
 
 ---
 
 ## Pros & Cons
 
 ### ✅ Pros
-1.  **O(1) Performance:** Loading Page 10,000 is as fast as Page 1.
-2.  **UX:** Users get "Page Numbers" (1-100) unlike standard infinite scroll.
-3.  **Safety:** Hard limits prevent "Deep Offset" attacks.
+1.  **Stateless:** Deep link to any segment and still go "Back".
+2.  **O(1) Performance:** Loading Page 10,000 is as fast as Page 1.
+3.  **UX:** Users get "Page Numbers" (1-100).
+4.  **Safety:** Hard limits prevent "Deep Offset" attacks.
 
 ### ⚠️ Cons
-1.  **Client State:** Frontend must track the History Stack for optimal "Back" navigation.
-2.  **Approximate Totals:** We don't show "Total 50,000 items". We show "2,000 items available" and reveal more as they go.
+1.  **DB Load:** We run 3 queries instead of 1. However, 2 of them are lightweight index scans.
+2.  **Approximate Totals:** We don't show "Total 50,000 items", only the local count.

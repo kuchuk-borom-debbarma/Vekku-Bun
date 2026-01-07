@@ -67,6 +67,14 @@ export class TagService extends ITagService {
       offset = 0,
     } = data;
 
+    if (offset < 0) {
+      throw new Error("Offset cannot be negative.");
+    }
+
+    if (limit < 1) {
+      throw new Error("Limit must be at least 1.");
+    }
+
     if (limit + offset > this.SEGMENT_SIZE) {
       throw new Error(
         `Limit and Offset exceed segment boundary. Max limit + offset allowed is ${this.SEGMENT_SIZE}. Requested: ${
@@ -109,13 +117,18 @@ export class TagService extends ITagService {
       }
     }
 
-    const [segmentIds, result] = await Promise.all([
+    // 2. Parallel Execution (Unified)
+    // We add a 3rd query: "Backward Scan" to find the Previous Segment Anchor (Stateless Back)
+    const [segmentIds, result, prevSegmentIds] = await Promise.all([
+      // A. Forward Map (Next Segment)
       db
         .select({ id: userTags.id })
         .from(userTags)
         .where(whereClause)
         .orderBy(...sortOrder)
         .limit(this.SEGMENT_SIZE + 1),
+
+      // B. Data (Current Page)
       db
         .select()
         .from(userTags)
@@ -123,6 +136,30 @@ export class TagService extends ITagService {
         .orderBy(...sortOrder)
         .limit(limit)
         .offset(offset),
+
+      // C. Backward Map (Previous Segment) - Only run if we have an anchor
+      // If no anchor, we are at top, so prev is null.
+      anchorId
+        ? db
+            .select({ id: userTags.id })
+            .from(userTags)
+            .where(
+              and(
+                eq(userTags.userId, userId),
+                // Reverse the direction for the backward look
+                direction === PaginationDirection.NEXT
+                  ? sql`(${userTags.createdAt}, ${userTags.id}) > (${anchorTag.createdAt}, ${anchorId})` // Look Up
+                  : sql`(${userTags.createdAt}, ${userTags.id}) <= (${anchorTag.createdAt}, ${anchorId})` // Look Down (Rare)
+              )
+            )
+            .orderBy(
+               // Reverse Sort
+               direction === PaginationDirection.NEXT 
+                 ? asc(userTags.createdAt) 
+                 : desc(userTags.createdAt)
+            )
+            .limit(this.SEGMENT_SIZE)
+        : Promise.resolve([]),
     ]);
 
     // Analyze Segment
@@ -133,9 +170,15 @@ export class TagService extends ITagService {
     // Calculate Next/Prev Anchor
     const nextAnchorId = hasNextSegment ? segmentIds[this.SEGMENT_SIZE]!.id : null;
     
-    // Current Anchor:
-    // If we have data, the first item is effectively the start of this segment view.
-    // If anchorId was null (start), this is the newest item.
+    // Calculate Previous Segment Anchor (Stateless)
+    // If we found a full 2000 items going backwards, the last one is the start of that prev segment.
+    // If we found < 2000, it means we hit the "Start" of the list, so prevAnchor is null.
+    let prevAnchorId = null;
+    if (prevSegmentIds.length === this.SEGMENT_SIZE) {
+       prevAnchorId = prevSegmentIds[this.SEGMENT_SIZE - 1].id;
+    }
+
+    // Current Anchor
     const currentAnchorId = segmentIds.length > 0 ? segmentIds[0]!.id : (anchorId || "");
 
     const response: UserTag[] = result.map((tag) => ({
@@ -152,6 +195,7 @@ export class TagService extends ITagService {
       metadata: {
         currentAnchorId,
         nextAnchorId,
+        prevAnchorId, // Now explicitly returned!
         segmentSize: this.SEGMENT_SIZE,
         segmentItemCount,
         hasNextSegment,
