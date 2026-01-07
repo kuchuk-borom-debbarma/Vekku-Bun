@@ -1,4 +1,5 @@
-import { describe, expect, test, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import { describe, expect, test, mock, beforeEach } from "bun:test";
+import { AuthServiceImpl } from "./AuthServiceImpl";
 
 // --- Mocks ---
 
@@ -15,9 +16,11 @@ mock.module("../../util/Jwt", () => ({
   ),
 }));
 
-// Mock Bun.password
-const hashSpy = spyOn(Bun.password, "hash").mockImplementation(async () => "hashed_password");
-const verifySpy = spyOn(Bun.password, "verify").mockImplementation(async (plain, hash) => plain === "password" && hash === "hashed_password");
+// Mock Hasher
+const mockHasher = {
+    hash: mock(async () => "hashed_password"),
+    verify: mock(async (plain, hash) => plain === "password" && hash === "hashed_password"),
+};
 
 // Drizzle Mocks
 const dbMocks = {
@@ -27,7 +30,7 @@ const dbMocks = {
   where: mock(() => ({
     limit: dbMocks.limit,
     returning: dbMocks.returning,
-    delete: dbMocks.delete, // for delete chain if needed
+    delete: dbMocks.delete, 
   })),
   values: mock(() => ({
     returning: dbMocks.returning,
@@ -42,40 +45,33 @@ const dbMocks = {
   insert: mock(() => ({ values: dbMocks.values })),
   delete: mock(() => ({ where: dbMocks.where })),
   
-  // Transaction
-  transaction: mock(async (cb: any) => {
-    return await cb({
-        insert: dbMocks.insert,
-        delete: dbMocks.delete,
-        select: dbMocks.select, // In case select is used in tx
-    });
+  // Transaction/Batch
+  batch: mock(async (_cb: any) => {
+    // batch expects an array of queries, we just resolve
+    return [];
   }),
 };
 
-mock.module("../../infra/Drizzle", () => ({
-  db: {
+// Construct the mock DB object (casted to any to match NeonHttpDatabase structure loosely)
+const mockDb = {
     select: dbMocks.select,
     insert: dbMocks.insert,
     delete: dbMocks.delete,
-    transaction: dbMocks.transaction,
-  },
-}));
-
-// Import service after mocks
-import { AuthServiceImpl } from "./AuthServiceImpl";
+    batch: dbMocks.batch,
+} as any;
 
 describe("AuthServiceImpl", () => {
   let service: AuthServiceImpl;
 
   beforeEach(() => {
-    service = new AuthServiceImpl();
+    service = new AuthServiceImpl({ db: mockDb, hasher: mockHasher });
     
     // Clear mocks
     Object.values(dbMocks).forEach((m) => {
         if (m.mockClear) m.mockClear();
     });
-    hashSpy.mockClear();
-    verifySpy.mockClear();
+    mockHasher.hash.mockClear();
+    mockHasher.verify.mockClear();
 
     // Default return for limit (select queries)
     dbMocks.limit.mockImplementation(() => []);
@@ -127,10 +123,10 @@ describe("AuthServiceImpl", () => {
       const result = await service.verifyEmail("valid-token", "123456", "password");
 
       expect(result).toBeTrue();
-      expect(dbMocks.transaction).toHaveBeenCalled();
+      expect(dbMocks.batch).toHaveBeenCalled();
       expect(dbMocks.insert).toHaveBeenCalled(); // User created
       expect(dbMocks.delete).toHaveBeenCalled(); // Verification deleted
-      expect(Bun.password.hash).toHaveBeenCalled();
+      expect(mockHasher.hash).toHaveBeenCalled();
     });
 
     test("should throw if verification token invalid/not found", async () => {
@@ -179,7 +175,7 @@ describe("AuthServiceImpl", () => {
           const result = await service.login("test@example.com", "password");
 
           expect(result).toEqual({ accessToken: "mock-access-token", refreshToken: "mock-refresh-token" });
-          expect(Bun.password.verify).toHaveBeenCalled();
+          expect(mockHasher.verify).toHaveBeenCalled();
       });
 
       test("should throw on user not found", async () => {
@@ -194,7 +190,7 @@ describe("AuthServiceImpl", () => {
         dbMocks.limit.mockImplementationOnce(() => [mockUser]);
         
         // Mock verify to return false
-        (Bun.password.verify as any).mockResolvedValueOnce(false);
+        mockHasher.verify.mockResolvedValueOnce(false as never);
 
         await expect(service.login("test@example.com", "wrong-pwd"))
           .rejects.toThrow("Invalid email or password");

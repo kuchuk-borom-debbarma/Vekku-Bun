@@ -1,8 +1,10 @@
 {
   "scripts": {
     "dev": "bun run --hot src/index.ts",
+    "dev:be": "bun run --hot src/index.ts",
+    "dev:fe": "bun build ./src/fe/index.html --outdir ./dist --watch",
     "build:fe": "bun build ./src/fe/index.html --outdir ./dist",
-    "dev:all": "bun run build:fe --watch & bun run dev",
+    "dev:all": "bun run dev:fe & bun run dev:be",
     "db:push": "bun x drizzle-kit push",
     "db:generate": "bun x drizzle-kit generate",
     "db:studio": "bun x drizzle-kit studio"
@@ -31,6 +33,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "awilix": "^12.0.5",
     "axios": "^1.13.2",
     "better-auth": "^1.4.10",
     "drizzle-orm": "^0.45.1",

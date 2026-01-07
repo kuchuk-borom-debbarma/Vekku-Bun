@@ -1,18 +1,29 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { db } from "../../infra/Drizzle";
+import { type NeonHttpDatabase } from "drizzle-orm/neon-http";
 import { type ChunkPaginationData } from "../../util/Pagination";
 import { generateUUID } from "../../util/UUID";
 import { ITagService, type UserTag } from "../api";
 import { userTags } from "./entities/UserTagEntity";
 
+type TagServiceDeps = {
+  db: NeonHttpDatabase;
+};
+
 export class TagServiceImpl extends ITagService {
+  private db: NeonHttpDatabase;
+
+  constructor({ db }: TagServiceDeps) {
+    super();
+    this.db = db;
+  }
+
   SEGMENT_SIZE = 2000;
   override async createTag(data: {
     name: string;
     semantic: string;
     userId: string;
   }): Promise<UserTag | null> {
-    const result = await db
+    const result = await this.db
       .insert(userTags)
       .values([
         {
@@ -62,7 +73,7 @@ export class TagServiceImpl extends ITagService {
       toUpdate.semantic = data.semantic;
     }
 
-    const result = await db
+    const result = await this.db
       .update(userTags)
       .set({ ...toUpdate, updatedAt: new Date() })
       .where(
@@ -91,7 +102,7 @@ export class TagServiceImpl extends ITagService {
     id: string;
     userId: string;
   }): Promise<boolean> {
-    const result = await db
+    const result = await this.db
       .update(userTags)
       .set({ updatedAt: new Date(), isDeleted: true })
       .where(and(eq(userTags.id, data.id), eq(userTags.userId, data.userId)))
@@ -123,7 +134,7 @@ export class TagServiceImpl extends ITagService {
     );
 
     if (chunkId) {
-      const [cursorTag] = await db
+      const [cursorTag] = await this.db
         .select({ createdAt: userTags.createdAt })
         .from(userTags)
         .where(and(eq(userTags.id, chunkId), eq(userTags.userId, userId)))
@@ -144,7 +155,7 @@ export class TagServiceImpl extends ITagService {
 
     // 2. Fetch Chunk IDs (The "Map")
     // Fetch one extra item to determine if there is a next chunk
-    const chunkIds = await db
+    const chunkIds = await this.db
       .select({ id: userTags.id })
       .from(userTags)
       .where(whereClause)
@@ -170,7 +181,7 @@ export class TagServiceImpl extends ITagService {
     // 5. Fetch Full Data (if any IDs found)
     let pageData: UserTag[] = [];
     if (pageIds.length > 0) {
-      const rows = await db
+      const rows = await this.db
         .select()
         .from(userTags)
         .where(inArray(userTags.id, pageIds));

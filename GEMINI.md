@@ -31,22 +31,15 @@ The project implements a **Chunk-Based Two-Step Pagination** strategy to solve t
 *   **Strategy:** Uses `uuid` library. Supports standard v4 and deterministic v5 (Name-based) generation.
 *   **Usage:** Tags use deterministic UUIDs generated from `[tagName, userId]` to ensure uniqueness per user-tag pair without extra DB lookups.
 
-### 3. Circular Dependency Prevention (Three-File Pattern)
-To avoid circular dependencies between abstractions and implementations, services follow a strict three-file structure:
-*   `api.ts`: Defines interfaces and types only. No implementation imports.
-*   `_internal/Service.ts`: Implements the interface.
-*   `index.ts`: The entry point. Imports both and exports the singleton instance (e.g., `export const tagService = new TagService()`).
+### 3. Dependency Injection (Awilix)
+The project uses **Awilix** for platform-agnostic dependency injection. 
+*   **Composition Root:** `src/be/infra/di.ts` is the single entry point where the container is initialized and common infrastructure (DB, Hasher) is registered.
+*   **Domain Manifests:** Each domain (e.g., `user`, `tag`) exports a `registerDomain(container)` function in its `index.ts`. This encapsulates domain-specific registrations (Services, Routers) and prevents `_internal` implementation details from leaking to the root container.
+*   **Constructor Injection:** Services use object destructuring in their constructors: `constructor({ db, hasher }: Deps)`.
 
-### 4. Custom Authentication
-A lightweight, secure authentication system replacing external providers.
-*   **Flow:**
-    1.  **Registration:** Two-step process. `triggerEmailVerification` sends OTP -> `verifyEmail` validates OTP, hashes password (Argon2 via `Bun.password`), creates user, and cleans up verifications.
-    2.  **Login:** Validates credentials and issues `accessToken` (15m) and `refreshToken` (7d).
-    3.  **Token Rotation:** `refreshToken` endpoint verifies the refresh token and issues a new pair.
-*   **Security:**
-    *   Passwords hashed using Bun's native optimized implementation.
-    *   JWTs signed using `hono/jwt`.
-    *   Strict cleaning of verification records to prevent reuse or clutter.
+### 4. Custom Authentication & Platform Abstraction
+*   **Hasher Abstraction:** `IHasher` interface allows swapping between `BunHasher` (native C++) and `WebHasher` (Standard Web Crypto) depending on the deployment platform.
+*   **Flow:** `triggerEmailVerification` (OTP) -> `verifyEmail` (Registration) -> `login` (JWT) -> `refreshToken` (Rotation).
 
 ## Building and Running
 
@@ -58,19 +51,22 @@ A lightweight, secure authentication system replacing external providers.
 | Command | Description |
 | :--- | :--- |
 | `bun install` | Install dependencies. |
+| `bun run dev:be` | Start the backend API server. |
+| `bun run dev:fe` | Start the frontend React bundler (watch). |
+| `bun run dev:all` | Start both FE and BE concurrently. |
 | `bun test` | Run unit tests (uses `bun:test`). |
-| `bun run dev` | Start the development server. |
-| `bun run build` | Build the project. |
+| `bun run db:push` | Sync database schema (Development). |
+| `bun run db:generate` | Generate SQL migrations (Production). |
+| `bun run db:studio` | Open visual database editor. |
 
 ## Development Conventions
 
-*   **Database Access:** All DB interactions go through Drizzle. `src/be/infra/Drizzle.ts` is designed to be resilient during tests by checking for `DATABASE_URL`.
-*   **Entities:** Defined in `src/be/**/_internal/entities/`.
-*   **Services:** Business logic resides in `Service` classes extending abstract interfaces. Use the **Three-File Pattern** for all new services.
-*   **Testing:** Unit tests reside alongside implementation (e.g., `TagService.test.ts`). Use `bun:test` and Chain Mocks for Drizzle's fluent API.
-*   **Boundaries:** Enforced via ESLint (`eslint-plugin-boundaries`).
-    *   **Domains:** `src/be/<domain>` (e.g., `tag`, `user`).
-    *   **Rule:** Domains are opaque. External modules can **only** import from `index.ts` or `api.ts`.
-    *   **Private:** `_internal` directories are strictly private to their domain.
+*   **Database Access:** All DB interactions go through the injected `db` instance.
+*   **Types & Imports:** 
+    *   **Strict Typing:** Always resolve compilation errors.
+    *   **Type-Only Imports:** Due to `verbatimModuleSyntax`, use `import type { ... }` when importing interfaces or types to avoid runtime side effects and compilation errors (TS 1484).
+*   **Boundaries:** Enforced via ESLint.
+    *   **Opaque Domains:** Domains are strictly private. External modules can **only** import from `index.ts` (manifests/types) or `api.ts` (interfaces).
+    *   **Infra:** Accessible via `src/be/infra/**`.
+*   **Testing:** Unit tests must use manual dependency injection. Do not rely on `mock.module` for injected dependencies; pass mock objects directly to the constructor.
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.
-*   **Type Safety:** Strict TypeScript usage with Drizzle's inferred types.

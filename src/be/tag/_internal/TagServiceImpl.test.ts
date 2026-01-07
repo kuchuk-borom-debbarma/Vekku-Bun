@@ -1,66 +1,39 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
+import { TagServiceImpl } from "./TagServiceImpl";
 
 // --- Mocks ---
-
 const mockUuid = "mock-uuid-123";
 mock.module("../../util/UUID", () => ({
   generateUUID: () => mockUuid,
 }));
 
-// We use a modular mock for Drizzle to simulate the chaining API
-// e.g. db.insert().values().onConflictDoUpdate().returning()
-const dbMocks = {
-  returning: mock(() => [] as any[]),
-  onConflictDoUpdate: mock(() => ({ returning: dbMocks.returning })),
-  values: mock(() => ({ onConflictDoUpdate: dbMocks.onConflictDoUpdate })),
-  where: mock(() => {
-    const chain = { 
-      returning: dbMocks.returning, 
-      orderBy: mock(() => ({ 
-        limit: dbMocks.limit 
-      })),
-      limit: dbMocks.limit,
-      // Make it thenable so 'await db.select...where(...)' works
-      then: (resolve: any) => Promise.resolve(dbMocks.returning()).then(resolve)
-    };
-    return chain;
-  }),
-  set: mock(() => ({ where: dbMocks.where })),
-  from: mock(() => ({ 
-    where: dbMocks.where, 
-    limit: dbMocks.limit,
-    orderBy: mock(() => ({ 
-      limit: dbMocks.limit 
-    }))
-  })),
-  limit: mock(() => [] as any[]),
-  select: mock(() => ({ from: dbMocks.from })),
-  insert: mock(() => ({ values: dbMocks.values })),
-  update: mock(() => ({ set: dbMocks.set })),
+// Helper to create a Drizzle-like chainable mock
+const createMockQuery = (data: any) => {
+  const query = Promise.resolve(data) as any;
+  query.where = mock(() => query);
+  query.limit = mock(() => query);
+  query.orderBy = mock(() => query);
+  query.from = mock(() => query);
+  query.values = mock(() => query);
+  query.onConflictDoUpdate = mock(() => query);
+  query.returning = mock(() => query);
+  query.set = mock(() => query);
+  return query;
 };
-
-mock.module("../../infra/Drizzle", () => ({
-  db: {
-    insert: dbMocks.insert,
-    update: dbMocks.update,
-    select: dbMocks.select,
-  },
-}));
-
-// IMPORT SERVICE AFTER MOCKS
-import { TagServiceImpl } from "./TagServiceImpl";
-
-// --- Tests ---
 
 describe("TagServiceImpl", () => {
   let service: TagServiceImpl;
+  let mockDb: any;
 
   beforeEach(() => {
-    service = new TagServiceImpl();
-    // Reset all mock call history and implementations
-    Object.values(dbMocks).forEach(m => m.mockClear());
-    dbMocks.returning.mockImplementation(() => []);
-    dbMocks.limit.mockImplementation(() => []);
+    mockDb = {
+      insert: mock(() => createMockQuery([])),
+      select: mock(() => createMockQuery([])),
+      update: mock(() => createMockQuery([])),
+      delete: mock(() => createMockQuery([])),
+    };
+
+    service = new TagServiceImpl({ db: mockDb });
   });
 
   describe("createTag", () => {
@@ -68,17 +41,17 @@ describe("TagServiceImpl", () => {
       const input = { name: "work", semantic: "office tasks", userId: "u1" };
       const dbResponse = { ...input, id: mockUuid, createdAt: new Date(), updatedAt: new Date() };
       
-      dbMocks.returning.mockImplementation(() => [dbResponse]);
+      mockDb.insert.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
       const result = await service.createTag(input);
 
-      expect(dbMocks.insert).toHaveBeenCalled();
+      expect(mockDb.insert).toHaveBeenCalled();
       expect(result?.id).toBe(mockUuid);
       expect(result?.name).toBe("work");
     });
 
     test("should return null if insertion fails", async () => {
-      dbMocks.returning.mockImplementation(() => []);
+      mockDb.insert.mockImplementationOnce(() => createMockQuery([]));
       const result = await service.createTag({ name: "x", semantic: "y", userId: "z" });
       expect(result).toBeNull();
     });
@@ -87,24 +60,24 @@ describe("TagServiceImpl", () => {
   describe("updateTag", () => {
     test("should update existing tag fields", async () => {
       const dbResponse = { id: "t1", name: "new-name", userId: "u1", updatedAt: new Date() };
-      dbMocks.returning.mockImplementation(() => [dbResponse]);
+      mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
       const result = await service.updateTag({ id: "t1", userId: "u1", name: "new-name" });
 
-      expect(dbMocks.update).toHaveBeenCalled();
+      expect(mockDb.update).toHaveBeenCalled();
       expect(result?.name).toBe("new-name");
     });
   });
 
   describe("deleteTag", () => {
     test("should return true when tag is successfully soft-deleted", async () => {
-      dbMocks.returning.mockImplementation(() => [{ id: "t1" }]);
+      mockDb.update.mockImplementationOnce(() => createMockQuery([{ id: "t1" }]));
       const result = await service.deleteTag({ id: "t1", userId: "u1" });
       expect(result).toBeTrue();
     });
 
     test("should return false if tag to delete is not found", async () => {
-      dbMocks.returning.mockImplementation(() => []);
+      mockDb.update.mockImplementationOnce(() => createMockQuery([]));
       const result = await service.deleteTag({ id: "t1", userId: "u1" });
       expect(result).toBeFalse();
     });
@@ -112,19 +85,15 @@ describe("TagServiceImpl", () => {
 
   describe("getTagsOfUser", () => {
     test("should fetch a page of tags", async () => {
-      // getTagsOfUser performs multiple queries. 
-      // 1. Fetch IDs for the chunk
-      // 2. Fetch full data for those IDs
-      
       const mockIds = [{ id: "tag-1" }, { id: "tag-2" }];
       const mockFullData = [
-        { id: "tag-1", name: "T1", userId: "u1", createdAt: new Date() },
-        { id: "tag-2", name: "T2", userId: "u1", createdAt: new Date() }
+        { id: "tag-1", name: "T1", userId: "u1", createdAt: new Date(), semantic: "S1" },
+        { id: "tag-2", name: "T2", userId: "u1", createdAt: new Date(), semantic: "S2" }
       ];
 
-      // Sequential mock returns: first call returns IDs, second returns full data
-      dbMocks.limit.mockImplementation(() => mockIds);
-      dbMocks.returning.mockImplementation(() => mockFullData);
+      mockDb.select
+        .mockImplementationOnce(() => createMockQuery(mockIds))
+        .mockImplementationOnce(() => createMockQuery(mockFullData));
 
       const result = await service.getTagsOfUser({ userId: "u1", limit: 10 });
 

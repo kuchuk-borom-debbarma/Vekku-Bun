@@ -26,6 +26,7 @@ export const Auth = () => {
       localStorage.setItem("refreshToken", data.refreshToken);
       navigate("/");
     } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       alert("Login failed: " + ((err as any).response?.data?.message || (err as any).message));
     }
   };
@@ -37,6 +38,7 @@ export const Auth = () => {
       setVerificationToken(data.token);
       setRegStep("OTP");
     } catch (err) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         alert("Verification failed: " + ((err as any).response?.data?.message || (err as any).message));
     }
   };
@@ -55,6 +57,7 @@ export const Auth = () => {
       setOtp("");
       setPassword("");
     } catch (err) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         alert("Registration failed: " + ((err as any).response?.data?.message || (err as any).message));
     }
   };

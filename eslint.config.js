@@ -75,7 +75,7 @@ export default tseslint.config(
             },
             {
                target: "infra",
-               allow: "*.(ts|js)"
+               allow: "**/*.(ts|js|tsx)"
             }
           ],
         },

@@ -1,6 +1,17 @@
+import { asClass, asFunction, type AwilixContainer } from "awilix";
 import { AuthServiceImpl } from "./_internal/AuthServiceImpl";
 import { createUserRouter } from "./_internal/routes";
-import type { IAuthService } from "./api";
+import { IAuthService } from "./api";
 
-export const authService: IAuthService = new AuthServiceImpl();
-export const userRouter = createUserRouter(authService);
+// Public API
+export * from "./api";
+
+// Registration Function
+export const registerUserDomain = (container: AwilixContainer) => {
+  container.register({
+    authService: asClass(AuthServiceImpl).singleton(),
+    userRouter: asFunction(({ authService }) => 
+      createUserRouter(authService as IAuthService)
+    ).singleton(),
+  });
+};

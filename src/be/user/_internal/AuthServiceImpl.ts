@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "../../infra/Drizzle";
+import { NeonHttpDatabase } from "drizzle-orm/neon-http";
 import { IAuthService } from "../api";
 import { user } from "./entities/UserEntity";
 import { userVerification } from "./entities/VerificationEntity";
@@ -9,10 +9,25 @@ import {
   generateRefreshToken,
   verifyJwt,
 } from "../../util/Jwt";
+import type { IHasher } from "../../infra/hashing/IHasher";
+
+type AuthServiceDeps = {
+  db: NeonHttpDatabase;
+  hasher: IHasher;
+};
 
 export class AuthServiceImpl extends IAuthService {
+  private db: NeonHttpDatabase;
+  private hasher: IHasher;
+
+  constructor({ db, hasher }: AuthServiceDeps) {
+    super();
+    this.db = db;
+    this.hasher = hasher;
+  }
+
   override async triggerEmailVerification(email: string): Promise<string> {
-    const result = await db
+    const result = await this.db
       .select({ id: user.id })
       .from(user)
       .where(eq(user.username, email))
@@ -22,7 +37,7 @@ export class AuthServiceImpl extends IAuthService {
       throw new Error("User with this email already exists");
     }
 
-    const saved = await db
+    const saved = await this.db
       .insert(userVerification)
       .values({
         email,
@@ -45,7 +60,7 @@ export class AuthServiceImpl extends IAuthService {
     otp: string,
     password: string,
   ): Promise<boolean> {
-    const verifications = await db
+    const verifications = await this.db
       .select()
       .from(userVerification)
       .where(eq(userVerification.id, token))
@@ -65,7 +80,7 @@ export class AuthServiceImpl extends IAuthService {
       throw new Error("Invalid OTP");
     }
 
-    const existingUser = await db
+    const existingUser = await this.db
       .select({ id: user.id })
       .from(user)
       .where(eq(user.username, verification.email))
@@ -75,17 +90,17 @@ export class AuthServiceImpl extends IAuthService {
       throw new Error("Email already in use");
     }
 
-    const hashedPassword = await Bun.password.hash(password);
+    const hashedPassword = await this.hasher.hash(password);
 
-    await db.batch([
-      db.insert(user).values({
+    await this.db.batch([
+      this.db.insert(user).values({
         id: generateUUID(),
         username: verification.email,
         password: hashedPassword,
         createdAt: new Date(),
         is_deleted: false,
       }),
-      db.delete(userVerification).where(eq(userVerification.email, verification.email)),
+      this.db.delete(userVerification).where(eq(userVerification.email, verification.email)),
     ]);
 
     return true;
@@ -95,7 +110,7 @@ export class AuthServiceImpl extends IAuthService {
     email: string,
     password: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const foundUser = await db
+    const foundUser = await this.db
       .select()
       .from(user)
       .where(eq(user.username, email))
@@ -107,7 +122,7 @@ export class AuthServiceImpl extends IAuthService {
       throw new Error("Invalid email or password");
     }
 
-    const valid = await Bun.password.verify(password, u.password);
+    const valid = await this.hasher.verify(password, u.password);
     if (!valid) {
       throw new Error("Invalid email or password");
     }
@@ -129,7 +144,7 @@ export class AuthServiceImpl extends IAuthService {
     const userId = payload.sub as string;
 
     // Optional: Verify user exists and is not banned
-    const foundUser = await db
+    const foundUser = await this.db
       .select({ id: user.id })
       .from(user)
       .where(eq(user.id, userId))

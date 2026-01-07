@@ -25,7 +25,7 @@ export const Dashboard = () => {
         if (parts.length < 2) return "";
         const payload = JSON.parse(atob(parts[1]!));
         return payload.sub; 
-    } catch (e) {
+    } catch (_e) {
         return "";
     }
   };
@@ -36,8 +36,8 @@ export const Dashboard = () => {
     try {
       const { data } = await api.get(`/tag?userId=${userId}&limit=20`);
       setTags(data.data);
-    } catch (err) {
-      console.error(err);
+    } catch (_err) {
+      // console.error(_err);
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export const Dashboard = () => {
       setNewTagName("");
       setNewTagSemantic("");
       fetchTags();
-    } catch (err) {
+    } catch (_err) {
       alert("Failed to create tag");
     }
   };
@@ -74,7 +74,7 @@ export const Dashboard = () => {
               data: { userId } 
           });
           fetchTags();
-      } catch (err) {
+      } catch (_err) {
           alert("Failed to delete tag");
       }
   }
