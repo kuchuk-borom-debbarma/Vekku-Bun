@@ -57,5 +57,9 @@ To avoid circular dependencies between abstractions and implementations, service
 *   **Entities:** Defined in `src/be/**/_internal/entities/`.
 *   **Services:** Business logic resides in `Service` classes extending abstract interfaces. Use the **Three-File Pattern** for all new services.
 *   **Testing:** Unit tests reside alongside implementation (e.g., `TagService.test.ts`). Use `bun:test` and Chain Mocks for Drizzle's fluent API.
+*   **Boundaries:** Enforced via ESLint (`eslint-plugin-boundaries`).
+    *   **Domains:** `src/be/<domain>` (e.g., `tag`, `user`).
+    *   **Rule:** Domains are opaque. External modules can **only** import from `index.ts` or `api.ts`.
+    *   **Private:** `_internal` directories are strictly private to their domain.
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.
 *   **Type Safety:** Strict TypeScript usage with Drizzle's inferred types.

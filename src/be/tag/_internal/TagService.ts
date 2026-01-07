@@ -106,7 +106,7 @@ export class TagService extends ITagService {
     limit?: number;
     offset?: number;
   }): Promise<ChunkPaginationData<UserTag>> {
-    let { userId, chunkId = null, limit = 20, offset = 0 } = data;
+    const { userId, chunkId = null, limit = 20, offset = 0 } = data;
 
     if (offset < 0) throw new Error("Offset cannot be negative.");
     if (limit < 1) throw new Error("Limit must be at least 1.");
