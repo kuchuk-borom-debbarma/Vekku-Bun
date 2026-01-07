@@ -9,23 +9,23 @@ export type UserTag = {
   updatedAt: Date | null;
 };
 
-export abstract class ITagService {
-  abstract createTag(data: {
+export interface ITagService {
+  createTag(data: {
     name: string;
     semantic: string;
     userId: string;
   }): Promise<UserTag | null>;
 
-  abstract updateTag(data: {
+  updateTag(data: {
     id: string;
     userId: string;
     name?: string;
     semantic?: string;
   }): Promise<UserTag | null>;
 
-  abstract deleteTag(data: { id: string; userId: string }): Promise<boolean>;
+  deleteTag(data: { id: string; userId: string }): Promise<boolean>;
 
-  abstract getTagsOfUser(data: {
+  getTagsOfUser(data: {
     userId: string;
     chunkId?: string;
     limit?: number;

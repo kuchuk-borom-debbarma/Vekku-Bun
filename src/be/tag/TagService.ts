@@ -1,24 +1,15 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { type NeonHttpDatabase } from "drizzle-orm/neon-http";
-import { type ChunkPaginationData } from "../../util/Pagination";
-import { generateUUID } from "../../util/UUID";
-import { ITagService, type UserTag } from "../api";
-import { userTags } from "./entities/UserTagEntity";
+import { type ChunkPaginationData } from "../util/Pagination";
+import { generateUUID } from "../util/UUID";
+import { userTags } from "./_internal/entities/UserTagEntity";
+import type { ITagService, UserTag } from "./ITagService";
 
-type TagServiceDeps = {
-  db: NeonHttpDatabase;
-};
-
-export class TagServiceImpl extends ITagService {
-  private db: NeonHttpDatabase;
-
-  constructor({ db }: TagServiceDeps) {
-    super();
-    this.db = db;
-  }
+export class TagService implements ITagService {
+  constructor(private db: NeonHttpDatabase) {}
 
   SEGMENT_SIZE = 2000;
-  override async createTag(data: {
+  async createTag(data: {
     name: string;
     semantic: string;
     userId: string;
@@ -58,7 +49,7 @@ export class TagServiceImpl extends ITagService {
     }
   }
 
-  override async updateTag(data: {
+  async updateTag(data: {
     id: string;
     userId: string;
     name?: string;
@@ -98,7 +89,7 @@ export class TagServiceImpl extends ITagService {
     return null;
   }
 
-  override async deleteTag(data: {
+  async deleteTag(data: {
     id: string;
     userId: string;
   }): Promise<boolean> {
@@ -111,7 +102,7 @@ export class TagServiceImpl extends ITagService {
     return result.length > 0;
   }
 
-  override async getTagsOfUser(data: {
+  async getTagsOfUser(data: {
     userId: string;
     chunkId?: string;
     limit?: number;

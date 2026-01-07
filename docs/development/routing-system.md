@@ -1,67 +1,51 @@
 # Routing System
 
-Vekku-Bun uses a domain-driven, encapsulated routing system built on top of **Hono**.
+Vekku-Bun uses a domain-driven routing system integrated with **Hono Context** for lightweight dependency injection.
 
 ## Architecture
 
-Routes are managed by **Controllers** within each domain. These controllers are registered in the Dependency Injection container, allowing them to accept injected services.
+Routes are defined within each domain and access services through the Hono Context. This keeps the routing logic decoupled from the concrete service implementations.
 
 ### 1. Structure
-Each domain (e.g., `user`, `tag`) contains its routing logic within a Controller class in `_internal`:
+Each domain (e.g., `user`, `tag`) contains its routing definitions and its service implementation:
 
 ```text
 src/be/domain/
-├── api.ts              # Abstract interface
-├── index.ts            # Public entry point (Service + Controller Registration)
-└── _internal/
-    ├── ServiceImpl.ts  # Logic implementation
-    └── UserController.ts # Route definitions (Controller)
+├── IAuthService.ts     # Interface (Contract)
+├── AuthService.ts      # Implementation
+└── routes.ts           # Hono route definitions
 ```
 
-### 2. The Controller Pattern
-The Controller class accepts the Service via constructor injection and exposes a `routes()` method that returns a configured Hono router.
+### 2. Context-Based DI
+Instead of constructors or factories, routes retrieve their dependencies from the Hono context using `c.get()`. The keys and types are defined in a central `src/context.ts`.
 
 ```typescript
-// src/be/user/_internal/UserController.ts
-export class UserController {
-  constructor({ authService }: Deps) {
-    this.authService = authService;
-  }
+// src/be/user/routes.ts
+const userRouter = new Hono<{ Variables: Variables }>();
 
-  routes(): Hono {
-    const router = new Hono();
-    router.post("/login", ...);
-    return router;
-  }
-}
+userRouter.post("/login", async (c) => {
+  const authService = c.get("authService"); // Returns IAuthService
+  const result = await authService.login(...);
+  return c.json(result);
+});
 ```
 
-### 3. Public Entry Point (index.ts)
-The domain's `index.ts` registers both the Service and the Controller into the Awilix container.
-
-```typescript
-// src/be/user/index.ts
-import { UserController } from "./_internal/UserController";
-
-export const registerUserDomain = (container: AwilixContainer) => {
-  container.register({
-    authService: asClass(AuthServiceImpl).singleton(),
-    userController: asClass(UserController).singleton(),
-  });
-};
-```
-
-### 4. Global Mounting
-The main application simply resolves the controllers and mounts their routes.
+### 3. Centralized Wiring
+The application entry point (`src/index.ts`) is responsible for instantiating the services once per request (or once per lifecycle) and injecting them into the context via middleware.
 
 ```typescript
 // src/index.ts
-const userController = container.resolve<UserController>("userController");
-app.route("/api/user", userController.routes());
+app.use(async (c, next) => {
+  const db = drizzle(env.DATABASE_URL);
+  const authService = new AuthService(db, hasher);
+  
+  c.set("authService", authService);
+  await next();
+});
 ```
 
 ## Benefits
-- **Full Dependency Injection:** Controllers are fully managed by the container.
-- **Encapsulation:** Route logic is hidden within the Controller class.
-- **Standardization:** Follows a familiar MVC-like structure (Service -> Controller -> Router).
-- **Testability:** Controllers can be unit tested by injecting mock services.
+- **Decoupling:** Routes only depend on interfaces (`IAuthService`), not concrete classes.
+- **Zero Magic:** No DI libraries or complex reflection; just standard Hono features.
+- **Platform Flexibility:** Different implementations can be injected based on environment variables (e.g., `BunHasher` vs `WebHasher`) in the central wiring.
+- **Simplicity:** Extremely easy to follow the flow of data and dependencies.

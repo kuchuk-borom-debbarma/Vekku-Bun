@@ -18,8 +18,8 @@
 ### 1. Chunk-Based Two-Step Pagination
 The project implements a **Chunk-Based Two-Step Pagination** strategy to solve the performance issues of deep offsets while maintaining user-friendly page numbers within local segments.
 
-*   **Location:** `src/be/tag/_internal/TagService.ts`
-*   **Documentation:** `docs/cursor-anchored-pagination.md`
+*   **Location:** `src/be/tag/TagService.ts`
+*   **Documentation:** `docs/development/cursor-anchored-pagination.md`
 *   **Key Concept:**
     *   **Chunks:** Data is viewed in large windows (e.g., 2,000 items).
     *   **Two-Step Fetch:** 
@@ -28,16 +28,16 @@ The project implements a **Chunk-Based Two-Step Pagination** strategy to solve t
     *   **Stateless Navigation:** The `nextChunkId` allows jumping to the next segment efficiently.
 
 ### 2. UUID Handling
-*   **Location:** `src/util/UUID.ts` (Inferred)
+*   **Location:** `src/be/util/UUID.ts`
 *   **Strategy:** Uses `uuid` library. Supports standard v4 and deterministic v5 (Name-based) generation.
 *   **Usage:** Tags use deterministic UUIDs generated from `[tagName, userId]` to ensure uniqueness per user-tag pair without extra DB lookups.
 
-### 3. Architecture: Manual Composition & Registry
-The project uses a **functional composition pattern** to remain lightweight and compatible with serverless environments (Cloudflare Workers).
-*   **Entry Point (`src/index.ts`):** Acts as the composition root. It accepts the environment (`env`), initializes infrastructure (`db`, `hasher`), and wires up domains.
-*   **Registries (`src/be/*/registry.ts`):** Each domain exports a registration side-effect that attaches its routes to the main Hono app.
-*   **Infrastructure (`src/be/infra/Registry.ts`):** A lightweight collector that queues route registration functions.
-*   **No Framework:** We removed heavy DI containers in favor of explicit, manual injection via factory functions (`createUserModule`).
+### 3. Architecture: Hono Context Dependency Injection
+The project uses a lightweight, platform-agnostic DI pattern leveraging **Hono Context** and **Interfaces**.
+*   **Interfaces:** Services define contracts (`IAuthService`, `ITagService`) to decouple implementation from usage.
+*   **Wiring (`src/index.ts`):** The application entry point manually instantiates concrete service classes (`AuthService`) and injects them into the Hono Context (`c.set('authService', service)`).
+*   **Consumption:** Routes access services via `c.get('authService')`, ensuring they only depend on the interface.
+*   **Platform Agnostic:** Infrastructure (DB, Hasher) is selected at runtime based on the environment (`env.WORKER`), allowing seamless deployment to Bun (Local/VPS) or Cloudflare Workers.
 
 ### 4. Custom Authentication & Platform Abstraction
 *   **Hasher Abstraction:** `IHasher` interface allows swapping between `BunHasher` (native C++) and `WebHasher` (Standard Web Crypto) depending on the deployment platform.
@@ -68,7 +68,7 @@ The project uses a **functional composition pattern** to remain lightweight and 
     *   **Strict Typing:** Always resolve compilation errors.
     *   **Type-Only Imports:** Due to `verbatimModuleSyntax`, use `import type { ... }` when importing interfaces or types to avoid runtime side effects and compilation errors (TS 1484).
 *   **Boundaries:** Enforced via ESLint.
-    *   **Opaque Domains:** Domains are strictly private. External modules can **only** import from `index.ts` (manifests/types) or `api.ts` (interfaces).
+    *   **Domain Encapsulation:** Domain logic is organized in `src/be/<domain>`. External modules should only import from public interfaces/routes.
     *   **Infra:** Accessible via `src/be/infra/**`.
 *   **Testing:** Unit tests must use manual dependency injection. Do not rely on `mock.module` for injected dependencies; pass mock objects directly to the constructor.
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.

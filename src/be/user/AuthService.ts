@@ -1,32 +1,23 @@
 import { eq } from "drizzle-orm";
 import { NeonHttpDatabase } from "drizzle-orm/neon-http";
-import { IAuthService } from "../api";
-import { user } from "./entities/UserEntity";
-import { userVerification } from "./entities/VerificationEntity";
-import { generateUUID } from "../../util/UUID";
+import { user } from "./_internal/entities/UserEntity";
+import { userVerification } from "./_internal/entities/VerificationEntity";
+import { generateUUID } from "../util/UUID";
 import {
   generateAccessToken,
   generateRefreshToken,
   verifyJwt,
-} from "../../util/Jwt";
-import type { IHasher } from "../../infra/hashing/IHasher";
+} from "../util/Jwt";
+import type { IHasher } from "../infra/hashing/IHasher";
+import type { IAuthService } from "./IAuthService";
 
-type AuthServiceDeps = {
-  db: NeonHttpDatabase;
-  hasher: IHasher;
-};
+export class AuthService implements IAuthService {
+  constructor(
+    private db: NeonHttpDatabase,
+    private hasher: IHasher
+  ) {}
 
-export class AuthServiceImpl extends IAuthService {
-  private db: NeonHttpDatabase;
-  private hasher: IHasher;
-
-  constructor({ db, hasher }: AuthServiceDeps) {
-    super();
-    this.db = db;
-    this.hasher = hasher;
-  }
-
-  override async triggerEmailVerification(email: string): Promise<string> {
+  async triggerEmailVerification(email: string): Promise<string> {
     const result = await this.db
       .select({ id: user.id })
       .from(user)
@@ -55,7 +46,7 @@ export class AuthServiceImpl extends IAuthService {
     return saved[0].id;
   }
 
-  override async verifyEmail(
+  async verifyEmail(
     token: string,
     otp: string,
     password: string,
@@ -106,7 +97,7 @@ export class AuthServiceImpl extends IAuthService {
     return true;
   }
 
-  override async login(
+  async login(
     email: string,
     password: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
@@ -133,7 +124,7 @@ export class AuthServiceImpl extends IAuthService {
     return { accessToken, refreshToken };
   }
 
-  override async refreshToken(
+  async refreshToken(
     token: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const payload = await verifyJwt(token);

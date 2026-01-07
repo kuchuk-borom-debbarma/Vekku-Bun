@@ -1,14 +1,14 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
-import { AuthServiceImpl } from "./AuthServiceImpl";
+import { AuthService } from "./AuthService";
 
 // --- Mocks ---
 
 const mockUuid = "mock-uuid-123";
-mock.module("../../util/UUID", () => ({
+mock.module("../util/UUID", () => ({
   generateUUID: () => mockUuid,
 }));
 
-mock.module("../../util/Jwt", () => ({
+mock.module("../util/Jwt", () => ({
   generateAccessToken: mock(async () => "mock-access-token"),
   generateRefreshToken: mock(async () => "mock-refresh-token"),
   verifyJwt: mock(async (token: string) => 
@@ -60,11 +60,11 @@ const mockDb = {
     batch: dbMocks.batch,
 } as any;
 
-describe("AuthServiceImpl", () => {
-  let service: AuthServiceImpl;
+describe("AuthService", () => {
+  let service: AuthService;
 
   beforeEach(() => {
-    service = new AuthServiceImpl({ db: mockDb, hasher: mockHasher });
+    service = new AuthService(mockDb, mockHasher);
     
     // Clear mocks
     Object.values(dbMocks).forEach((m) => {

@@ -1,9 +1,9 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
-import { TagServiceImpl } from "./TagServiceImpl";
+import { TagService } from "./TagService";
 
 // --- Mocks ---
 const mockUuid = "mock-uuid-123";
-mock.module("../../util/UUID", () => ({
+mock.module("../util/UUID", () => ({
   generateUUID: () => mockUuid,
 }));
 
@@ -21,8 +21,8 @@ const createMockQuery = (data: any) => {
   return query;
 };
 
-describe("TagServiceImpl", () => {
-  let service: TagServiceImpl;
+describe("TagService", () => {
+  let service: TagService;
   let mockDb: any;
 
   beforeEach(() => {
@@ -33,7 +33,7 @@ describe("TagServiceImpl", () => {
       delete: mock(() => createMockQuery([])),
     };
 
-    service = new TagServiceImpl({ db: mockDb });
+    service = new TagService(mockDb);
   });
 
   describe("createTag", () => {
