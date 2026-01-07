@@ -1,9 +1,7 @@
 import { Hono } from "hono";
 import type { IAuthService } from "../api";
 
-export const createUserRouter = (authService: IAuthService) => {
-  const router = new Hono();
-
+export const registerUserRoutes = (router: Hono, authService: IAuthService) => {
   router.post("/trigger-verification", async (c) => {
     const { email } = await c.req.json();
     const token = await authService.triggerEmailVerification(email);
@@ -27,6 +25,4 @@ export const createUserRouter = (authService: IAuthService) => {
     const result = await authService.refreshToken(token);
     return c.json(result);
   });
-
-  return router;
 };

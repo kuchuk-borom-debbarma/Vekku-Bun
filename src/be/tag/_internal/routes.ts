@@ -1,9 +1,7 @@
 import { Hono } from "hono";
 import type { ITagService } from "../api";
 
-export const createTagRouter = (tagService: ITagService) => {
-  const router = new Hono();
-
+export const registerTagRoutes = (router: Hono, tagService: ITagService) => {
   router.post("/", async (c) => {
     const data = await c.req.json();
     const result = await tagService.createTag(data);
@@ -35,6 +33,4 @@ export const createTagRouter = (tagService: ITagService) => {
     const result = await tagService.getTagsOfUser({ userId, chunkId, limit, offset });
     return c.json(result);
   });
-
-  return router;
 };

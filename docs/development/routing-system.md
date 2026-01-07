@@ -4,7 +4,7 @@ Vekku-Bun uses a domain-driven, encapsulated routing system built on top of **Ho
 
 ## Architecture
 
-Routes are designed to be private to their respective domains. We follow a strict pattern to ensure separation of concerns and to prevent circular dependencies between services and routers.
+Routes are designed to be private to their respective domains. We follow a "Mounting Pattern" where the main application passes a Router instance to the domain, and the domain attaches its routes.
 
 ### 1. Structure
 Each domain (e.g., `user`, `tag`) contains its routing logic within an `_internal` directory:
@@ -12,54 +12,67 @@ Each domain (e.g., `user`, `tag`) contains its routing logic within an `_interna
 ```text
 src/be/domain/
 ├── api.ts              # Abstract interface
-├── index.ts            # Public entry point (Service + Router instance)
+├── index.ts            # Public entry point (Service Registration + Route Mounting)
 └── _internal/
     ├── ServiceImpl.ts  # Logic implementation
     └── routes.ts       # Hono route definitions
 ```
 
-### 2. The Factory Pattern
-To avoid circular dependencies (where the Router needs the Service, and the Service is exported by the index which also exports the Router), we use a **factory function** in `_internal/routes.ts`.
+### 2. The Mounting Pattern
+Instead of the domain creating its own Router instance, it exports a function that accepts a Router and the Service.
 
 ```typescript
 // src/be/domain/_internal/routes.ts
-export const createDomainRouter = (service: IDomainService) => {
-  const router = new Hono();
-
+export const registerDomainRoutes = (router: Hono, service: IDomainService) => {
   router.post("/", async (c) => {
     const data = await c.req.json();
     const result = await service.doSomething(data);
     return c.json(result);
   });
-
-  return router;
 };
 ```
 
-### 3. Registration
-The router is instantiated in the domain's `index.ts` by passing the singleton service instance into the factory:
+### 3. Public Entry Point (index.ts)
+The domain's `index.ts` is responsible for resolving the service from the Dependency Injection container and calling the internal registration function.
 
 ```typescript
 // src/be/domain/index.ts
-import { DomainServiceImpl } from "./_internal/ServiceImpl";
-import { createDomainRouter } from "./_internal/routes";
+import { registerDomainRoutes } from "./_internal/routes";
 
-export const domainService = new DomainServiceImpl();
-export const domainRouter = createDomainRouter(domainService);
+// 1. Register Services (for DI)
+export const registerDomain = (container: AwilixContainer) => {
+  container.register({
+    domainService: asClass(DomainServiceImpl).singleton(),
+  });
+};
+
+// 2. Mount Routes (for HTTP)
+export const mountDomainRoutes = (router: Hono, container: AwilixContainer) => {
+  const service = container.resolve<IDomainService>("domainService");
+  registerDomainRoutes(router, service);
+};
 ```
 
 ### 4. Global Mounting
-Finally, all domain routers are mounted in the main application entry point under the `/api` prefix:
+The main application creates the router instances and hands them to the domains.
 
 ```typescript
 // src/index.ts
-import { domainRouter } from "./be/domain";
+import { mountDomainRoutes } from "./be/domain";
 
-app.route("/api/domain", domainRouter);
+const app = new Hono();
+const container = createAppContainer();
+
+// Create sub-app
+const domainApp = new Hono();
+mountDomainRoutes(domainApp, container);
+
+// Mount sub-app
+app.route("/api/domain", domainApp);
 ```
 
 ## Benefits
-- **Opaque Internals:** External modules don't need to know how routes are implemented; they only see the `domainRouter` exported from `index.ts`.
-- **Type Safety:** Routes are tightly coupled to the Service interface, ensuring consistent data handling.
-- **Easy Testing:** Routers can be tested in isolation by passing a mock service to the factory function.
-- **Organization:** Prevents the main `src/index.ts` from becoming a "mega-file" with hundreds of route definitions.
+- **Inversion of Control:** The main app controls the Router creation (middleware, settings).
+- **Separation of Concerns:** The DI container manages *Services*, not *Routers*.
+- **Opaque Internals:** Route implementation details remain hidden in `_internal`.
+- **Testability:** Routes can be tested by passing a mock Hono instance and mock Service.

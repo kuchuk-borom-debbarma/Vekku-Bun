@@ -1,17 +1,21 @@
-import { asClass, asFunction, type AwilixContainer } from "awilix";
+import { asClass, type AwilixContainer } from "awilix";
+import { Hono } from "hono";
 import { TagServiceImpl } from "./_internal/TagServiceImpl";
-import { createTagRouter } from "./_internal/routes";
+import { registerTagRoutes } from "./_internal/routes";
 import { ITagService } from "./api";
 
 // Public API
 export * from "./api";
 
-// Registration Function
+// Registration Function (Services)
 export const registerTagDomain = (container: AwilixContainer) => {
   container.register({
     tagService: asClass(TagServiceImpl).singleton(),
-    tagRouter: asFunction(({ tagService }) => 
-      createTagRouter(tagService as ITagService)
-    ).singleton(),
   });
+};
+
+// Mounting Function (Routes)
+export const mountTagRoutes = (router: Hono, container: AwilixContainer) => {
+  const tagService = container.resolve<ITagService>("tagService");
+  registerTagRoutes(router, tagService);
 };
