@@ -1,7 +1,8 @@
 {
   "scripts": {
     "dev": "bun run --hot src/index.ts",
-    "build:fe": "bun build ./src/fe/index.html --outdir ./dist"
+    "build:fe": "bun build ./src/fe/index.html --outdir ./dist",
+    "dev:all": "bun run build:fe --watch & bun run dev"
   },
   "name": "vekku-server-bun",
   "module": "index.ts",
