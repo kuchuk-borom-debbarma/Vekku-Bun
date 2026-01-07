@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "dev": "bun run --hot src/index.ts"
+  },
   "name": "vekku-server-bun",
   "module": "index.ts",
   "type": "module",
@@ -22,6 +25,7 @@
     "@neondatabase/serverless": "^1.0.2",
     "better-auth": "^1.4.10",
     "drizzle-orm": "^0.45.1",
+    "hono": "^4.11.3",
     "uuid": "^13.0.0"
   }
 }

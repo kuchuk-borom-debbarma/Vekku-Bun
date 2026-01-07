@@ -6,7 +6,14 @@ export const auth = betterAuth({
   },
   session: {
     cookieCache: {
-      version: "1", // Increment this to invalidate all existing cookies
+      enabled: true,
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      strategy: "jwt",
+      refreshCache: true,
+    },
+    account: {
+      storeStateStrategy: "cookie",
+      storeAccountCookie: true, // Store account data after OAuth flow in a cookie (useful for database-less flows)
     },
   },
 });
