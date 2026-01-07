@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
+import { describe, expect, test, mock, beforeEach, afterEach, spyOn } from "bun:test";
 
 // --- Mocks ---
 
@@ -16,14 +16,8 @@ mock.module("../../util/Jwt", () => ({
 }));
 
 // Mock Bun.password
-const originalPassword = Bun.password;
-// We'll override this in beforeEach if needed, or just set it globally here since it's simple
-Bun.password = {
-    ...originalPassword,
-    hash: mock(async () => "hashed_password"),
-    verify: mock(async (plain, hash) => plain === "password" && hash === "hashed_password"),
-} as any;
-
+const hashSpy = spyOn(Bun.password, "hash").mockImplementation(async () => "hashed_password");
+const verifySpy = spyOn(Bun.password, "verify").mockImplementation(async (plain, hash) => plain === "password" && hash === "hashed_password");
 
 // Drizzle Mocks
 const dbMocks = {
@@ -80,8 +74,8 @@ describe("AuthServiceImpl", () => {
     Object.values(dbMocks).forEach((m) => {
         if (m.mockClear) m.mockClear();
     });
-    (Bun.password.hash as any).mockClear();
-    (Bun.password.verify as any).mockClear();
+    hashSpy.mockClear();
+    verifySpy.mockClear();
 
     // Default return for limit (select queries)
     dbMocks.limit.mockImplementation(() => []);
