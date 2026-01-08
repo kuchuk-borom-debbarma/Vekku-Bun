@@ -7,7 +7,6 @@ import { generateSignupToken, verifySignupToken } from "../../lib/jwt";
 type Bindings = {
   DATABASE_URL: string;
   WORKER?: string;
-  BASE_URL?: string; 
 };
 
 const authRouter = new Hono<{ Bindings: Bindings }>();
@@ -23,8 +22,9 @@ authRouter.post("/signup/request", async (c) => {
   // Create stateless token
   const token = await generateSignupToken({ email, passwordHash, name });
 
-  // In production, send email. For dev, log URL.
-  const baseUrl = c.env.BASE_URL || "http://localhost:3000";
+  // Detect base URL dynamically from request
+  const url = new URL(c.req.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
   const verifyUrl = `${baseUrl}/api/auth/signup/verify?token=${token}`;
   
   console.log(`\n>>> Verify Signup: ${verifyUrl} <<<

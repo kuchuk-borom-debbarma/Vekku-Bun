@@ -20,7 +20,6 @@ cp .env.example .env
 Update `.env` with:
 - `DATABASE_URL`: Your PostgreSQL connection string.
 - `JWT_SECRET`: Used as the JWT signing key (keep it secure).
-- `BASE_URL`: Base URL for link generation.
 
 ## 3. Database Management
 We use Drizzle ORM for database interactions.
