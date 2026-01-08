@@ -34,7 +34,7 @@ interface PaginationRequest {
 }
 ```
 
-### 2. The Execution Flow (`TagService.ts`)
+### 2. The Execution Flow (`src/modules/tags/tags.service.ts`)
 
 #### Step A: Resolve Cursor
 If a `chunkId` is provided, we look up its creation timestamp to establish the cursor position (`WHERE (created_at, id) <= (cursor_date, cursor_id)`).
