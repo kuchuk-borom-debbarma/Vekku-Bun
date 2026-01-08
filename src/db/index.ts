@@ -1,9 +1,11 @@
-import { drizzle, NeonHttpDatabase } from "drizzle-orm/neon-http";
-import * as schema from "./schema";
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import * as baseSchema from "./schema";
+import * as authSchema from "./auth-schema";
 
-export const getDb = (url: string): NeonHttpDatabase<typeof schema> => {
-  return drizzle(url, { schema });
+export const schema = { ...baseSchema, ...authSchema };
+
+export const getDb = (url: string) => {
+  const client = neon(url);
+  return drizzle(client, { schema });
 };
-
-// Export schema for convenience
-export * from "./schema";

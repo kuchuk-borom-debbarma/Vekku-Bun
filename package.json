@@ -11,6 +11,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@better-auth/cli": "^1.4.10",
     "@types/bun": "latest",
     "@types/uuid": "^11.0.0",
     "drizzle-kit": "^0.31.8"
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "better-auth": "^1.4.10",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.3",
     "uuid": "^13.0.0"
