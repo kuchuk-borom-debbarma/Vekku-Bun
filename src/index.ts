@@ -23,7 +23,6 @@ const createApp = (env: Bindings) => {
 };
 
 export default {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fetch(request: Request, env: Bindings, ctx: any) {
     const app = createApp(env || process.env);
     return app.fetch(request, env, ctx);
