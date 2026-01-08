@@ -41,29 +41,15 @@ Open Drizzle Studio to browse and edit your data:
 bun run db:studio
 ```
 
-## 4. Build the Frontend
-Bundle the React application:
-```bash
-bun run build:fe
-```
-
-## 5. Running the Application
-### Development (FE + BE)
-To run both the backend server and the frontend watcher concurrently:
-```bash
-bun run dev:all
-```
-This will:
-- Watch for changes in `src/fe` and rebuild automatically.
-- Start the Hono server with hot-reload.
-- Serve the application at `http://localhost:3000`.
-
-### Backend Only
+## 4. Running the Application
+### Development
+To start the Hono server with hot-reload:
 ```bash
 bun run dev
 ```
+The API will be available at `http://localhost:3000`.
 
-## 6. Deployment (Cloudflare Workers)
+## 5. Deployment (Cloudflare Workers)
 This project is configured for Cloudflare Workers.
 
 ### 1. Setup
@@ -83,7 +69,7 @@ bun x wrangler secret put DATABASE_URL
 bun x wrangler deploy
 ```
 
-## 7. Testing
+## 6. Testing
 Run the test suite using Bun's native test runner:
 ```bash
 # Run all tests
@@ -95,7 +81,3 @@ bun test src/be/user
 
 ## Development Workflow
 - **Backend:** Changes in `src/be` or `src/index.ts` will trigger a server reload.
-- **Frontend:** To auto-rebuild the frontend on changes, run:
-  ```bash
-  bun build --watch ./src/fe/index.html --outdir ./dist
-  ```

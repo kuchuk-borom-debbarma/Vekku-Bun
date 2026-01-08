@@ -2,9 +2,6 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "dev:be": "bun run --hot src/index.ts",
-    "dev:fe": "bun build ./src/fe/index.html --outdir ./dist --watch",
-    "build:fe": "bun build ./src/fe/index.html --outdir ./dist",
-    "dev:all": "bun run dev:fe & bun run dev:be",
     "db:push": "bun x drizzle-kit push",
     "db:generate": "bun x drizzle-kit generate",
     "db:studio": "bun x drizzle-kit studio"
@@ -16,14 +13,10 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/bun": "latest",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "@types/react-router-dom": "^5.3.3",
     "@types/uuid": "^11.0.0",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9.39.2",
     "eslint-import-resolver-typescript": "^4.4.4",
-    "eslint-plugin-boundaries": "^5.3.1",
     "eslint-plugin-import": "^2.32.0",
     "globals": "^17.0.0",
     "typescript-eslint": "^8.52.0"
@@ -33,13 +26,8 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
-    "axios": "^1.13.2",
-    "better-auth": "^1.4.10",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.3",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-router-dom": "^7.12.0",
     "uuid": "^13.0.0"
   }
 }

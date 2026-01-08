@@ -1,9 +1,9 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
-import { TagService } from "./TagService";
+import * as tagService from "./tags.service";
 
 // --- Mocks ---
 const mockUuid = "mock-uuid-123";
-mock.module("../util/UUID", () => ({
+mock.module("../../lib/uuid", () => ({
   generateUUID: () => mockUuid,
 }));
 
@@ -22,7 +22,6 @@ const createMockQuery = (data: any) => {
 };
 
 describe("TagService", () => {
-  let service: TagService;
   let mockDb: any;
 
   beforeEach(() => {
@@ -32,8 +31,6 @@ describe("TagService", () => {
       update: mock(() => createMockQuery([])),
       delete: mock(() => createMockQuery([])),
     };
-
-    service = new TagService(mockDb);
   });
 
   describe("createTag", () => {
@@ -43,7 +40,7 @@ describe("TagService", () => {
       
       mockDb.insert.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
-      const result = await service.createTag(input);
+      const result = await tagService.createTag(mockDb, input);
 
       expect(mockDb.insert).toHaveBeenCalled();
       expect(result?.id).toBe(mockUuid);
@@ -52,7 +49,7 @@ describe("TagService", () => {
 
     test("should return null if insertion fails", async () => {
       mockDb.insert.mockImplementationOnce(() => createMockQuery([]));
-      const result = await service.createTag({ name: "x", semantic: "y", userId: "z" });
+      const result = await tagService.createTag(mockDb, { name: "x", semantic: "y", userId: "z" });
       expect(result).toBeNull();
     });
   });
@@ -62,7 +59,7 @@ describe("TagService", () => {
       const dbResponse = { id: "t1", name: "new-name", userId: "u1", updatedAt: new Date() };
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
-      const result = await service.updateTag({ id: "t1", userId: "u1", name: "new-name" });
+      const result = await tagService.updateTag(mockDb, { id: "t1", userId: "u1", name: "new-name" });
 
       expect(mockDb.update).toHaveBeenCalled();
       expect(result?.name).toBe("new-name");
@@ -72,13 +69,13 @@ describe("TagService", () => {
   describe("deleteTag", () => {
     test("should return true when tag is successfully soft-deleted", async () => {
       mockDb.update.mockImplementationOnce(() => createMockQuery([{ id: "t1" }]));
-      const result = await service.deleteTag({ id: "t1", userId: "u1" });
+      const result = await tagService.deleteTag(mockDb, { id: "t1", userId: "u1" });
       expect(result).toBeTrue();
     });
 
     test("should return false if tag to delete is not found", async () => {
       mockDb.update.mockImplementationOnce(() => createMockQuery([]));
-      const result = await service.deleteTag({ id: "t1", userId: "u1" });
+      const result = await tagService.deleteTag(mockDb, { id: "t1", userId: "u1" });
       expect(result).toBeFalse();
     });
   });
@@ -95,7 +92,7 @@ describe("TagService", () => {
         .mockImplementationOnce(() => createMockQuery(mockIds))
         .mockImplementationOnce(() => createMockQuery(mockFullData));
 
-      const result = await service.getTagsOfUser({ userId: "u1", limit: 10 });
+      const result = await tagService.getTagsOfUser(mockDb, { userId: "u1", limit: 10 });
 
       expect(result.data).toHaveLength(2);
       expect(result.data[0]?.id).toBe("tag-1");
@@ -103,7 +100,7 @@ describe("TagService", () => {
     });
 
     test("should throw error for invalid offset", async () => {
-      expect(service.getTagsOfUser({ userId: "u1", offset: -1 }))
+      expect(tagService.getTagsOfUser(mockDb, { userId: "u1", offset: -1 }))
         .rejects.toThrow("Offset cannot be negative.");
     });
   });

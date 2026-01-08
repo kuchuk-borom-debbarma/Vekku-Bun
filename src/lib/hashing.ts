@@ -1,4 +1,17 @@
-import type { IHasher } from "./IHasher";
+export interface IHasher {
+  hash(plain: string): Promise<string>;
+  verify(plain: string, hashed: string): Promise<boolean>;
+}
+
+export class BunHasher implements IHasher {
+  async hash(plain: string): Promise<string> {
+    return await Bun.password.hash(plain);
+  }
+
+  async verify(plain: string, hashed: string): Promise<boolean> {
+    return await Bun.password.verify(plain, hashed);
+  }
+}
 
 export class WebHasher implements IHasher {
   async hash(plain: string): Promise<string> {
@@ -14,3 +27,7 @@ export class WebHasher implements IHasher {
     return newHash === hashed;
   }
 }
+
+export const getHasher = (env: { WORKER?: string }): IHasher => {
+  return env.WORKER ? new WebHasher() : new BunHasher();
+};

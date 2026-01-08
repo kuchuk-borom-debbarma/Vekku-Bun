@@ -50,25 +50,43 @@ The project uses a lightweight, platform-agnostic DI pattern leveraging **Hono C
 *   PostgreSQL instance (Neon)
 
 ### Commands
+
 | Command | Description |
+
 | :--- | :--- |
+
 | `bun install` | Install dependencies. |
-| `bun run dev:be` | Start the backend API server. |
-| `bun run dev:fe` | Start the frontend React bundler (watch). |
-| `bun run dev:all` | Start both FE and BE concurrently. |
+
+| `bun run dev` | Start the backend API server. |
+
 | `bun test` | Run unit tests (uses `bun:test`). |
+
 | `bun run db:push` | Sync database schema (Development). |
+
 | `bun run db:generate` | Generate SQL migrations (Production). |
+
 | `bun run db:studio` | Open visual database editor. |
+
+
 
 ## Development Conventions
 
+
+
 *   **Database Access:** All DB interactions go through the injected `db` instance.
+
 *   **Types & Imports:** 
+
     *   **Strict Typing:** Always resolve compilation errors.
+
     *   **Type-Only Imports:** Due to `verbatimModuleSyntax`, use `import type { ... }` when importing interfaces or types to avoid runtime side effects and compilation errors (TS 1484).
+
 *   **Boundaries:** Enforced via ESLint.
+
     *   **Domain Encapsulation:** Domain logic is organized in `src/be/<domain>`. External modules should only import from public interfaces/routes.
+
     *   **Infra:** Accessible via `src/be/infra/**`.
+
 *   **Testing:** Unit tests must use manual dependency injection. Do not rely on `mock.module` for injected dependencies; pass mock objects directly to the constructor.
+
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.

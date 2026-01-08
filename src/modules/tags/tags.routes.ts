@@ -1,28 +1,36 @@
 import { Hono } from "hono";
-import { type Variables } from "../../context";
+import { getDb } from "../../db";
+import * as tagService from "./tags.service";
 
-const tagRouter = new Hono<{ Variables: Variables }>();
+type Bindings = {
+  DATABASE_URL: string;
+};
+
+const tagRouter = new Hono<{ Bindings: Bindings }>();
 
 tagRouter.post("/", async (c) => {
   const data = await c.req.json();
-  const tagService = c.get("tagService");
-  const result = await tagService.createTag(data);
+  const db = getDb(c.env.DATABASE_URL);
+  
+  const result = await tagService.createTag(db, data);
   return c.json(result);
 });
 
 tagRouter.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const data = await c.req.json();
-  const tagService = c.get("tagService");
-  const result = await tagService.updateTag({ ...data, id });
+  const db = getDb(c.env.DATABASE_URL);
+
+  const result = await tagService.updateTag(db, { ...data, id });
   return c.json(result);
 });
 
 tagRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const { userId } = await c.req.json();
-  const tagService = c.get("tagService");
-  const result = await tagService.deleteTag({ id, userId });
+  const db = getDb(c.env.DATABASE_URL);
+
+  const result = await tagService.deleteTag(db, { id, userId });
   return c.json({ success: result });
 });
 
@@ -34,8 +42,9 @@ tagRouter.get("/", async (c) => {
   const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : undefined;
   const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : undefined;
 
-  const tagService = c.get("tagService");
-  const result = await tagService.getTagsOfUser({ userId, chunkId, limit, offset });
+  const db = getDb(c.env.DATABASE_URL);
+
+  const result = await tagService.getTagsOfUser(db, { userId, chunkId, limit, offset });
   return c.json(result);
 });
 
