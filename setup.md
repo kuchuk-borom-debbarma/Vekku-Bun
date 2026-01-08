@@ -19,8 +19,8 @@ cp .env.example .env
 ```
 Update `.env` with:
 - `DATABASE_URL`: Your PostgreSQL connection string.
-- `BETTER_AUTH_SECRET`: A secure random string (generate one with `openssl rand -base64 32`).
-- `BETTER_AUTH_URL`: Your base URL (e.g., `http://localhost:3000`).
+- `JWT_SECRET`: Used as the JWT signing key (keep it secure).
+- `BASE_URL`: Base URL for link generation.
 
 ## 3. Database Management
 We use Drizzle ORM for database interactions.
@@ -52,16 +52,23 @@ bun run dev
 ```
 The API will be available at `http://localhost:3000`.
 
-### Testing Auth (Magic Link)
-Since we don't have an email provider configured for development, Magic Links are logged to the console.
-1. Send a POST request to request a login:
+### Testing Auth (Custom Stateless)
+1. **Request Signup:**
    ```bash
-   curl -X POST http://localhost:3000/api/auth/sign-in/magic-link \
+   curl -X POST http://localhost:3000/api/auth/signup/request \
      -H "Content-Type: application/json" \
-     -d '{"email": "test@example.com"}'
+     -d '{"email": "test@example.com", "password": "password123", "name": "Test User"}'
    ```
-2. Check your terminal console for the Magic Link URL.
-3. Open the link to verify the session.
+2. **Verify:** Check your terminal for the `Verify Signup` URL and open it (or curl it).
+   ```bash
+   curl "http://localhost:3000/api/auth/signup/verify?token=YOUR_TOKEN"
+   ```
+3. **Login:**
+   ```bash
+   curl -X POST http://localhost:3000/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email": "test@example.com", "password": "password123"}'
+   ```
 
 ## 5. Deployment (Cloudflare Workers)
 This project is configured for Cloudflare Workers.
@@ -76,8 +83,7 @@ bun add -d wrangler
 Set your secrets:
 ```bash
 bun x wrangler secret put DATABASE_URL
-bun x wrangler secret put BETTER_AUTH_SECRET
-bun x wrangler secret put BETTER_AUTH_URL
+bun x wrangler secret put JWT_SECRET
 ```
 
 ### 3. Deploy

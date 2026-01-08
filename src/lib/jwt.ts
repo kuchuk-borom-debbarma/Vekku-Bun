@@ -1,6 +1,23 @@
 import { sign, verify } from "hono/jwt";
 
+// Fallback is for dev only. In prod, ensure JWT_SECRET is set.
 const SECRET_KEY = process.env.JWT_SECRET || "default-secret-key-change-it";
+
+export const generateSignupToken = async (data: Record<string, any>) => {
+  const payload = {
+    ...data,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiration
+  };
+  return await sign(payload, SECRET_KEY);
+};
+
+export const verifySignupToken = async (token: string) => {
+  try {
+    return await verify(token, SECRET_KEY);
+  } catch (_) {
+    return null;
+  }
+};
 
 export const generateAccessToken = async (userId: string) => {
   const payload = {

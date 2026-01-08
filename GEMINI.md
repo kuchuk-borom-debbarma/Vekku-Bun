@@ -26,10 +26,10 @@ The project uses a **Modular Functional** architecture.
 *   **Documentation:** `docs/development/architecture.md`
 *   **Concept:** Services are collections of pure functions that accept dependencies (like `db`) as arguments. Routes handle the "wiring" of these dependencies.
 
-### 3. Authentication (Better Auth)
-*   **Documentation:** `docs/development/auth-system.md`
-*   **Strategy:** Magic Link (Passwordless).
-*   **Implementation:** Uses `better-auth` library with Drizzle adapter. Protected routes use a session middleware to inject `user` into the context.
+### 3. Authentication (Custom Stateless)
+*   **Documentation:** `docs/development/custom-auth.md`
+*   **Strategy:** Stateless Registration Token + JWT Login.
+*   **Flow:** Signup details are signed into a JWT link. User creation happens only upon verification.
 
 ### 4. Platform Agnostic
 *   **Hono:** The core framework handles cross-platform compatibility.
