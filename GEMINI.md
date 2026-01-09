@@ -63,26 +63,13 @@ The project uses a **Modular Functional** architecture.
 
 ## Development Conventions
 
-
-
-
-
-
+*   **Learning Mode:** The user is strictly in **learning mode**. Do NOT write or implement code automatically. Instead, provide high-level guidance, architectural plans, and code snippets only when asked. The goal is for the user to write the code themselves.
+*   **Code Reviews:** After the user implements a feature, offer to review the code for best practices, performance, and adherence to project conventions.
 
 *   **Database Access:** Use `getDb(url)` to obtain a connection. Pass this connection to service functions.
 
-
-
 *   **Functional Style:** Avoid Classes for services. Use exported functions.
-
-
 
 *   **Testing:** Mock dependencies by passing mock objects directly to function arguments.
 
-
-
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.
-
-
-
-
