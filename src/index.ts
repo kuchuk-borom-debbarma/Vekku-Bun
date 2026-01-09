@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { tagRouter } from "./modules/tags/tags.routes";
 import { authRouter } from "./modules/auth/auth.routes";
+import { contentRouter } from "./modules/contents/contents.routes";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -18,6 +19,7 @@ const createApp = (env: Bindings) => {
   // Mount Routes
   app.route("/api/auth", authRouter);
   app.route("/api/tag", tagRouter);
+  app.route("/api/content", contentRouter);
 
   return app;
 };
