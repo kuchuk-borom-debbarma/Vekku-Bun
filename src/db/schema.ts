@@ -21,9 +21,7 @@ export const user = pgTable(
     updatedAt: timestamp("updated_at"),
     isDeleted: boolean("is_deleted").default(false).notNull(),
   },
-  (table) => [
-    index("user_username_idx").on(table.username),
-  ]
+  (table) => [index("user_username_idx").on(table.username)],
 );
 
 // --- Tag Domain ---
@@ -37,10 +35,36 @@ export const userTags = pgTable(
     semantic: text().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
+    deletedAt: timestamp("deleted_at"),
     isDeleted: boolean("is_deleted").notNull().default(false),
   },
   (table) => [
     index("tags_pagination_idx").on(
+      table.userId,
+      table.isDeleted,
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
+  ],
+);
+
+// --- Content Domain ---
+
+export const contents = pgTable(
+  "contents",
+  {
+    id: varchar({ length: 255 }).primaryKey(),
+    userId: varchar("fk_user_id", { length: 255 }).notNull(),
+    title: text().notNull(),
+    body: text().notNull(),
+    contentType: text().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at"),
+    deletedAt: timestamp("deleted_at"),
+    isDeleted: boolean("is_deleted").notNull().default(false),
+  },
+  (table) => [
+    index("contents_pagination_idx").on(
       table.userId,
       table.isDeleted,
       table.createdAt.desc(),

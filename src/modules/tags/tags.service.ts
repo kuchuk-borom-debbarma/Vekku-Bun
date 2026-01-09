@@ -13,6 +13,8 @@ export type UserTag = {
   userId: string;
   createdAt: Date;
   updatedAt: Date | null;
+  deletedAt: Date | null;
+  isDeleted: boolean;
 };
 
 export const createTag = async (
@@ -21,7 +23,7 @@ export const createTag = async (
     name: string;
     semantic: string;
     userId: string;
-  }
+  },
 ): Promise<UserTag | null> => {
   const result = await db
     .insert(schema.userTags)
@@ -52,6 +54,8 @@ export const createTag = async (
       userId: tag.userId,
       createdAt: tag.createdAt,
       updatedAt: tag.updatedAt,
+      deletedAt: tag.deletedAt,
+      isDeleted: tag.isDeleted,
     };
   } else {
     return null;
@@ -65,7 +69,7 @@ export const updateTag = async (
     userId: string;
     name?: string;
     semantic?: string;
-  }
+  },
 ): Promise<UserTag | null> => {
   const toUpdate: { name?: string; semantic?: string } = {};
 
@@ -83,8 +87,8 @@ export const updateTag = async (
       and(
         eq(schema.userTags.id, data.id),
         eq(schema.userTags.userId, data.userId),
-        eq(schema.userTags.isDeleted, false)
-      )
+        eq(schema.userTags.isDeleted, false),
+      ),
     )
     .returning();
   const tag = result[0];
@@ -96,6 +100,8 @@ export const updateTag = async (
       userId: tag.userId,
       createdAt: tag.createdAt,
       updatedAt: tag.updatedAt,
+      deletedAt: tag.deletedAt,
+      isDeleted: tag.isDeleted,
     };
   }
   return null;
@@ -106,7 +112,7 @@ export const deleteTag = async (
   data: {
     id: string;
     userId: string;
-  }
+  },
 ): Promise<boolean> => {
   const result = await db
     .update(schema.userTags)
@@ -114,8 +120,8 @@ export const deleteTag = async (
     .where(
       and(
         eq(schema.userTags.id, data.id),
-        eq(schema.userTags.userId, data.userId)
-      )
+        eq(schema.userTags.userId, data.userId),
+      ),
     )
     .returning();
 
@@ -129,7 +135,7 @@ export const getTagsOfUser = async (
     chunkId?: string;
     limit?: number;
     offset?: number;
-  }
+  },
 ): Promise<ChunkPaginationData<UserTag>> => {
   const { userId, chunkId = null, limit = 20, offset = 0 } = data;
 
@@ -137,14 +143,14 @@ export const getTagsOfUser = async (
   if (limit < 1) throw new Error("Limit must be at least 1.");
   if (offset >= SEGMENT_SIZE) {
     throw new Error(
-      `Offset (${offset}) cannot equal or exceed chunk size (${SEGMENT_SIZE}).`
+      `Offset (${offset}) cannot equal or exceed chunk size (${SEGMENT_SIZE}).`,
     );
   }
 
   // 1. Resolve Cursor (Timestamp lookup if chunkId is provided)
   let whereClause = and(
     eq(schema.userTags.userId, userId),
-    eq(schema.userTags.isDeleted, false)
+    eq(schema.userTags.isDeleted, false),
   );
 
   if (chunkId) {
@@ -154,8 +160,8 @@ export const getTagsOfUser = async (
       .where(
         and(
           eq(schema.userTags.id, chunkId),
-          eq(schema.userTags.userId, userId)
-        )
+          eq(schema.userTags.userId, userId),
+        ),
       )
       .limit(1);
 
@@ -163,7 +169,7 @@ export const getTagsOfUser = async (
       whereClause = and(
         eq(schema.userTags.userId, userId),
         eq(schema.userTags.isDeleted, false),
-        sql`(${schema.userTags.createdAt}, ${schema.userTags.id}) <= (${cursorTag.createdAt}, ${chunkId})`
+        sql`(${schema.userTags.createdAt}, ${schema.userTags.id}) <= (${cursorTag.createdAt}, ${chunkId})`,
       )!;
     }
   }
@@ -207,6 +213,8 @@ export const getTagsOfUser = async (
         userId: tag.userId,
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
+        deletedAt: tag.deletedAt,
+        isDeleted: tag.isDeleted,
       }));
   }
 
