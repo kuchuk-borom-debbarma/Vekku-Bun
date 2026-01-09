@@ -1,8 +1,7 @@
 import { Hono } from "hono";
-import { getDb } from "../../db";
-import * as contentService from "./contents.service";
+import { getContentService } from "./index";
 import { verifyJwt } from "../../lib/jwt";
-import { ContentType } from "./contents.service";
+import { ContentType } from "./ContentService";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -45,10 +44,10 @@ contentRouter.use("*", async (c, next) => {
 contentRouter.post("/", async (c) => {
   const data = await c.req.json();
   const user = c.get("user");
-  const db = getDb(c.env.DATABASE_URL);
+  const contentService = getContentService();
 
   try {
-    const result = await contentService.createContent(db, {
+    const result = await contentService.createContent({
       title: data.title,
       content: data.content,
       contentType: data.contentType || ContentType.PLAIN_TEXT,
@@ -65,17 +64,17 @@ contentRouter.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const data = await c.req.json();
   const user = c.get("user");
-  const db = getDb(c.env.DATABASE_URL);
+  const contentService = getContentService();
 
   try {
-    const result = await contentService.updateContent(db, {
+    const result = await contentService.updateContent({
       id,
       userId: user.id,
       title: data.title,
       content: data.content,
       contentType: data.contentType,
     });
-    
+
     if (!result) {
       return c.json({ error: "Content not found or unauthorized" }, 404);
     }
@@ -90,13 +89,13 @@ contentRouter.patch("/:id", async (c) => {
 contentRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const user = c.get("user");
-  const db = getDb(c.env.DATABASE_URL);
+  const contentService = getContentService();
 
-  const success = await contentService.deleteContent(db, id, user.id);
+  const success = await contentService.deleteContent(id, user.id);
   if (!success) {
     return c.json({ error: "Content not found or unauthorized" }, 404);
   }
-  
+
   return c.json({ success: true });
 });
 
@@ -104,19 +103,14 @@ contentRouter.delete("/:id", async (c) => {
 contentRouter.get("/:id", async (c) => {
   const id = c.req.param("id");
   const user = c.get("user");
-  const db = getDb(c.env.DATABASE_URL);
+  const contentService = getContentService();
 
-  const result = await contentService.getContentById(db, id);
-  
+  const result = await contentService.getContentById(id);
+
   if (!result) {
     return c.json({ error: "Content not found" }, 404);
   }
 
-  // Optional: Check if user owns content? 
-  // For now, assuming contents are private to the user based on getContentsByUserId,
-  // but getContentById in service doesn't strictly enforce userId, just ID.
-  // However, usually we want to ensure ownership. 
-  // Let's verify ownership:
   if (result.userId !== user.id) {
     return c.json({ error: "Unauthorized" }, 403);
   }
@@ -128,13 +122,22 @@ contentRouter.get("/:id", async (c) => {
 contentRouter.get("/", async (c) => {
   const user = c.get("user");
   const chunkId = c.req.query("chunkId");
-  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : undefined;
-  const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : undefined;
+  const limit = c.req.query("limit")
+    ? parseInt(c.req.query("limit")!)
+    : undefined;
+  const offset = c.req.query("offset")
+    ? parseInt(c.req.query("offset")!)
+    : undefined;
 
-  const db = getDb(c.env.DATABASE_URL);
+  const contentService = getContentService();
 
   try {
-    const result = await contentService.getContentsByUserId(db, user.id, limit, offset, chunkId);
+    const result = await contentService.getContentsByUserId(
+      user.id,
+      limit,
+      offset,
+      chunkId,
+    );
     return c.json(result);
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400);

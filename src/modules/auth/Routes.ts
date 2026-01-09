@@ -1,7 +1,6 @@
 import { Hono } from "hono";
-import { getDb } from "../../db";
 import { getHasher } from "../../lib/hashing";
-import * as authService from "./auth.service";
+import { getAuthService } from "./index";
 import { generateSignupToken, verifySignupToken } from "../../lib/jwt";
 
 type Bindings = {
@@ -27,7 +26,7 @@ authRouter.post("/signup/request", async (c) => {
   const baseUrl = `${url.protocol}//${url.host}`;
   const verifyUrl = `${baseUrl}/api/auth/signup/verify?token=${token}`;
   
-  console.log(`\n>>> Verify Signup: ${verifyUrl} <<<
+  console.log(`\n>>> Verify Signup: ${verifyUrl} <<<\n
 `);
 
   return c.json({ message: "Verification email sent (check console)", token }); // returning token for ease of testing
@@ -41,10 +40,10 @@ authRouter.get("/signup/verify", async (c) => {
   const payload = await verifySignupToken(token);
   if (!payload) return c.json({ error: "Invalid or expired token" }, 400);
 
-  const db = getDb(c.env.DATABASE_URL);
+  const authService = getAuthService();
   
   try {
-    const user = await authService.createUser(db, {
+    const user = await authService.createUser({
       email: payload.email as string,
       passwordHash: payload.passwordHash as string,
       name: payload.name as string,
@@ -59,11 +58,11 @@ authRouter.get("/signup/verify", async (c) => {
 // 3. Login
 authRouter.post("/login", async (c) => {
   const { email, password } = await c.req.json();
-  const db = getDb(c.env.DATABASE_URL);
   const hasher = getHasher(c.env);
+  const authService = getAuthService();
 
   try {
-    const result = await authService.loginUser(db, hasher, email, password);
+    const result = await authService.loginUser(hasher, email, password);
     return c.json(result);
   } catch (err) {
     return c.json({ error: "Invalid credentials" }, 401);

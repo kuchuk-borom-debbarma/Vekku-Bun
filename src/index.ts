@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { tagRouter } from "./modules/tags/tags.routes";
-import { authRouter } from "./modules/auth/auth.routes";
-import { contentRouter } from "./modules/contents/contents.routes";
+import { tagRouter } from "./modules/tags/Routes";
+import { authRouter } from "./modules/auth/Routes";
+import { contentRouter } from "./modules/contents/Routes";
 
 type Bindings = {
   DATABASE_URL: string;
