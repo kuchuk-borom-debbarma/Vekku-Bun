@@ -1,13 +1,12 @@
-import { pipeline } from "@xenova/transformers";
-
 export interface IEmbeddingService {
   generateEmbedding(text: string): Promise<number[]>;
 }
 
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
-    // Placeholder for local implementation
-    return [0];
+    // Return a zero vector of dimension 384 to match DB schema
+    // and prevent crashes during local development.
+    return new Array(384).fill(0);
   },
 };
 

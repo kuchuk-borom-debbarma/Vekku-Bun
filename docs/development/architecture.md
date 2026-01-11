@@ -60,6 +60,11 @@ export const createTag = async (db: NeonHttpDatabase, data: TagData) => {
 *   Centralizes schema definitions.
 *   Provides `getDb(url)` to create a connection. Using `neon-http` for serverless compatibility.
 
+### 4. Semantic Tagging & Suggestion Engine
+*   **Documentation:** `docs/development/embedding-suggestions.md`
+*   **Strategy:** Uses `pgvector` for storing embeddings and `HNSW` indexes for fast similarity search.
+*   **Concept:** Separates "Global Concepts" (embeddings) from "User Tags" (links) to optimize storage and allow user-scoped vector searches.
+
 ## Testing Strategy
 Tests are co-located with modules (`*.test.ts`).
 *   **Mocking:** Since services take dependencies as arguments, testing is straightforward. We create mock DB objects and pass them directly to the service functions.

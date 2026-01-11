@@ -8,6 +8,7 @@ import {
   ContentType,
   type IContentService,
 } from "./ContentService";
+import { getTagSuggestionService } from "../suggestions";
 
 const SEGMENT_SIZE = 20;
 
@@ -38,6 +39,21 @@ export class ContentServiceImpl implements IContentService {
 
     const content = result[0];
     if (!content) return null;
+
+    // Trigger Suggestion Generation (Fire and forget or await?)
+    // Awaiting ensures consistency for the user's immediate view.
+    try {
+      const suggestionService = getTagSuggestionService();
+      await suggestionService.createSuggestionsForContent({
+        content: content.body,
+        contentId: content.id,
+        userId: content.userId,
+        suggestionsCount: 5,
+        threshold: 0.6,
+      });
+    } catch (e) {
+      console.error("Failed to generate suggestions for content:", e);
+    }
 
     return {
       id: content.id,
@@ -84,6 +100,22 @@ export class ContentServiceImpl implements IContentService {
 
     const content = result[0];
     if (!content) return null;
+
+    // Regenerate suggestions if content body changed
+    if (data.content) {
+         try {
+            const suggestionService = getTagSuggestionService();
+            await suggestionService.createSuggestionsForContent({
+                content: content.body,
+                contentId: content.id,
+                userId: content.userId,
+                suggestionsCount: 5,
+                threshold: 0.6,
+            });
+         } catch (e) {
+             console.error("Failed to regenerate suggestions on update:", e);
+         }
+    }
 
     return {
       id: content.id,

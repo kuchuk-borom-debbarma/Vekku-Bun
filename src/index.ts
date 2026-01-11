@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { tagRouter } from "./modules/tags/Routes";
 import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
+import { suggestionRouter } from "./modules/suggestions/Routes";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -20,6 +21,7 @@ const createApp = (env: Bindings) => {
   app.route("/api/auth", authRouter);
   app.route("/api/tag", tagRouter);
   app.route("/api/content", contentRouter);
+  app.route("/api/suggestions", suggestionRouter);
 
   return app;
 };

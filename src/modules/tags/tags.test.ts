@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 import { TagServiceImpl } from "./TagServiceImpl";
 
 // --- Mocks ---
@@ -7,7 +7,7 @@ mock.module("../../lib/uuid", () => ({
   generateUUID: () => mockUuid,
 }));
 
-// Helper to create a Drizzle-like chainable mock
+// Mock Database
 const createMockQuery = (data: any) => {
   const query = Promise.resolve(data) as any;
   query.where = mock(() => query);
@@ -18,42 +18,67 @@ const createMockQuery = (data: any) => {
   query.onConflictDoUpdate = mock(() => query);
   query.returning = mock(() => query);
   query.set = mock(() => query);
+  query.leftJoin = mock(() => query); // Added for join
   return query;
 };
 
+const mockDb = {
+  insert: mock(() => createMockQuery([])),
+  select: mock(() => createMockQuery([])),
+  update: mock(() => createMockQuery([])),
+  delete: mock(() => createMockQuery([])),
+};
+
+mock.module("../../db", () => ({
+  getDb: () => mockDb,
+}));
+
+// Mock Suggestion Service
+const mockSuggestionService = {
+  learnTag: mock(async () => "mock-embedding-id"),
+};
+
+mock.module("../suggestions", () => ({
+  getTagSuggestionService: () => mockSuggestionService,
+}));
+
 describe("TagService", () => {
-  let mockDb: any;
   let tagService: TagServiceImpl;
 
   beforeEach(() => {
-    mockDb = {
-      insert: mock(() => createMockQuery([])),
-      select: mock(() => createMockQuery([])),
-      update: mock(() => createMockQuery([])),
-      delete: mock(() => createMockQuery([])),
-    };
-    tagService = new TagServiceImpl(mockDb);
+    tagService = new TagServiceImpl();
+    // Reset mocks
+    mockDb.insert.mockClear();
+    mockDb.select.mockClear();
+    mockDb.update.mockClear();
+    mockDb.delete.mockClear();
+    mockSuggestionService.learnTag.mockClear();
   });
 
   describe("createTag", () => {
     test("should create and return a tag", async () => {
       const input = { name: "work", semantic: "office tasks", userId: "u1" };
       const dbResponse = {
-        ...input,
         id: mockUuid,
+        name: "work",
+        userId: "u1",
+        embeddingId: "mock-embedding-id",
         createdAt: new Date(),
         updatedAt: new Date(),
         deletedAt: null,
         isDeleted: false,
       };
 
+      // Mock insert returning the tag
       mockDb.insert.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
       const result = await tagService.createTag(input);
 
+      expect(mockSuggestionService.learnTag).toHaveBeenCalledWith("office tasks");
       expect(mockDb.insert).toHaveBeenCalled();
       expect(result?.id).toBe(mockUuid);
       expect(result?.name).toBe("work");
+      expect(result?.semantic).toBe("office tasks");
     });
 
     test("should return null if insertion fails", async () => {
@@ -73,13 +98,17 @@ describe("TagService", () => {
         id: "t1",
         name: "new-name",
         userId: "u1",
+        embeddingId: "old-emb-id",
         updatedAt: new Date(),
         createdAt: new Date(),
         deletedAt: null,
         isDeleted: false,
-        semantic: "s",
       };
+      // For semantic fetch fallback
+      const mockConcept = [{ semantic: "old-semantic" }];
+
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
+      mockDb.select.mockImplementationOnce(() => createMockQuery(mockConcept));
 
       const result = await tagService.updateTag({
         id: "t1",
@@ -89,6 +118,32 @@ describe("TagService", () => {
 
       expect(mockDb.update).toHaveBeenCalled();
       expect(result?.name).toBe("new-name");
+      expect(result?.semantic).toBe("old-semantic");
+    });
+
+    test("should update semantic and learn new tag", async () => {
+       const dbResponse = {
+        id: "t1",
+        name: "work",
+        userId: "u1",
+        embeddingId: "new-emb-id", // Updated ID
+        updatedAt: new Date(),
+        createdAt: new Date(),
+        deletedAt: null,
+        isDeleted: false,
+      };
+
+      mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
+      // No select needed because we passed semantic
+
+      const result = await tagService.updateTag({
+        id: "t1",
+        userId: "u1",
+        semantic: "new-semantic",
+      });
+
+      expect(mockSuggestionService.learnTag).toHaveBeenCalledWith("new-semantic");
+      expect(result?.semantic).toBe("new-semantic");
     });
   });
 
@@ -111,26 +166,37 @@ describe("TagService", () => {
   describe("getTagsOfUser", () => {
     test("should fetch a page of tags", async () => {
       const mockIds = [{ id: "tag-1" }, { id: "tag-2" }];
+      // Mock Data structure for the Join
       const mockFullData = [
         {
-          id: "tag-1",
-          name: "T1",
-          userId: "u1",
-          createdAt: new Date(),
-          semantic: "S1",
+          tag: {
+            id: "tag-1",
+            name: "T1",
+            userId: "u1",
+            createdAt: new Date(),
+            updatedAt: null,
+            deletedAt: null,
+            isDeleted: false,
+          },
+          embedding: { semantic: "S1" },
         },
         {
-          id: "tag-2",
-          name: "T2",
-          userId: "u1",
-          createdAt: new Date(),
-          semantic: "S2",
+          tag: {
+            id: "tag-2",
+            name: "T2",
+            userId: "u1",
+            createdAt: new Date(),
+            updatedAt: null,
+            deletedAt: null,
+            isDeleted: false,
+          },
+          embedding: { semantic: "S2" },
         },
       ];
 
       mockDb.select
-        .mockImplementationOnce(() => createMockQuery(mockIds))
-        .mockImplementationOnce(() => createMockQuery(mockFullData));
+        .mockImplementationOnce(() => createMockQuery(mockIds)) // chunk query
+        .mockImplementationOnce(() => createMockQuery(mockFullData)); // data query
 
       const result = await tagService.getTagsOfUser({
         userId: "u1",
@@ -139,6 +205,7 @@ describe("TagService", () => {
 
       expect(result.data).toHaveLength(2);
       expect(result.data[0]?.id).toBe("tag-1");
+      expect(result.data[0]?.semantic).toBe("S1");
       expect(result.metadata.chunkTotalItems).toBe(2);
     });
 
