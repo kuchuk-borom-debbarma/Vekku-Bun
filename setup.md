@@ -24,6 +24,13 @@ Update `.env` with:
 ## 3. Database Management
 We use Drizzle ORM for database interactions.
 
+### One-Time Setup (Extensions)
+This project uses `pgvector` for embeddings and `pg_search` for advanced full-text search. Enable them in your PostgreSQL instance:
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_search;
+```
+
 ### Sync Schema (Development)
 Quickly push schema changes to the database (prototyping/dev):
 ```bash
@@ -91,6 +98,7 @@ bun x wrangler deploy
 ```
 
 ## 6. Testing
+### Unit Tests
 Run the test suite using Bun's native test runner:
 ```bash
 # Run all tests
@@ -99,6 +107,19 @@ bun test
 # Run specific module tests
 bun test src/modules/tags
 ```
+
+### Web UI Tester
+We provide a local dashboard to test the API flows (Auth, Tags, Content) visually.
+
+1.  Start the backend:
+    ```bash
+    bun run dev
+    ```
+2.  Start the UI tester (in a new terminal):
+    ```bash
+    bun run test:ui
+    ```
+3.  Open `http://localhost:8080` to interact with your local API.
 
 ## Development Workflow
 - **Backend:** Changes in `src/modules` or `src/index.ts` will trigger a server reload.

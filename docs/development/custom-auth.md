@@ -39,3 +39,8 @@ The `user` table is minimal:
 *   `password`: Hashed Password
 *   `name`: User's Name
 *   `role`: "user" (default)
+
+## Testing
+You can easily test this flow using the **Web UI Tester**:
+1. Run `bun run test:ui`.
+2. Use the **Authentication** sidebar to Request Signup, Verify (paste the token logged in the backend console), and Login.
