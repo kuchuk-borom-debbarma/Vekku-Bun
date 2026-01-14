@@ -44,12 +44,15 @@ export class ContentServiceImpl implements IContentService {
     // Awaiting ensures consistency for the user's immediate view.
     try {
       const suggestionService = getTagSuggestionService();
+      const threshold = process.env.EMBEDDING_THRESHOLD ? parseFloat(process.env.EMBEDDING_THRESHOLD) : 0.4;
+      const matchCount = process.env.EMBEDDING_MATCH_COUNT ? parseInt(process.env.EMBEDDING_MATCH_COUNT) : 20;
+      
       await suggestionService.createSuggestionsForContent({
         content: content.body,
         contentId: content.id,
         userId: content.userId,
-        suggestionsCount: 5,
-        threshold: 0.6,
+        suggestionsCount: matchCount,
+        threshold: threshold,
       });
     } catch (e) {
       console.error("Failed to generate suggestions for content:", e);
@@ -105,12 +108,15 @@ export class ContentServiceImpl implements IContentService {
     if (data.content) {
          try {
             const suggestionService = getTagSuggestionService();
+            const threshold = process.env.EMBEDDING_THRESHOLD ? parseFloat(process.env.EMBEDDING_THRESHOLD) : 0.4;
+            const matchCount = process.env.EMBEDDING_MATCH_COUNT ? parseInt(process.env.EMBEDDING_MATCH_COUNT) : 20;
+
             await suggestionService.createSuggestionsForContent({
                 content: content.body,
                 contentId: content.id,
                 userId: content.userId,
-                suggestionsCount: 5,
-                threshold: 0.6,
+                suggestionsCount: matchCount,
+                threshold: threshold,
             });
          } catch (e) {
              console.error("Failed to regenerate suggestions on update:", e);

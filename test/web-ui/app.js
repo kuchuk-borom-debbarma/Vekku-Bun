@@ -1,5 +1,6 @@
 // State
-let authToken = localStorage.getItem('vekku_token') || null;
+let accessToken = localStorage.getItem('vekku_access_token') || null;
+let refreshToken = localStorage.getItem('vekku_refresh_token') || null;
 let currentUser = null;
 
 // Config
@@ -8,8 +9,14 @@ const getApiUrl = () => document.getElementById('apiUrl').value.replace(/\/$/, '
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
     checkHealth();
-    if (authToken) {
+    
+    // Auto-fill inputs if tokens exist in local storage
+    if (accessToken) document.getElementById('accessTokenInput').value = accessToken;
+    if (refreshToken) document.getElementById('refreshTokenInput').value = refreshToken;
+
+    if (accessToken) {
         // Ideally verify token validity here, for now just assume valid state
+        // We can try to decode the token payload if we had a library, but simple is fine.
         showAuthenticatedState();
     }
 });
@@ -34,7 +41,10 @@ function log(title, data, isError = false) {
 async function apiCall(endpoint, method = 'GET', body = null) {
     const url = `${getApiUrl()}${endpoint}`;
     const headers = { 'Content-Type': 'application/json' };
-    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    
+    // Always grab the latest token from the input field to ensure we use what the user sees
+    const currentToken = document.getElementById('accessTokenInput').value || accessToken;
+    if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`;
 
     const options = { method, headers };
     if (body) options.body = JSON.stringify(body);
@@ -95,8 +105,9 @@ async function verifySignup() {
     const token = document.getElementById('verifyToken').value;
     try {
         const res = await apiCall(`/auth/signup/verify?token=${token}`);
-        if (res.token) {
-            handleLoginSuccess(res.token, res.user);
+        if (res.user) {
+            alert('Verification successful! You can now log in.');
+            toggleAuthMode('login');
         }
     } catch (e) {}
 }
@@ -107,17 +118,49 @@ async function login() {
 
     try {
         const res = await apiCall('/auth/login', 'POST', { email, password });
-        if (res.token) {
-            handleLoginSuccess(res.token, res.user); // Assuming backend returns user info
+        // The backend returns { user, accessToken, refreshToken }
+        if (res.accessToken) {
+            handleLoginSuccess(res.accessToken, res.refreshToken, res.user);
+        } else {
+            log('Login Error', 'No accessToken in response', true);
+            alert('Login successful but no access token received.');
         }
     } catch (e) {}
 }
 
-function handleLoginSuccess(token, user) {
-    authToken = token;
-    currentUser = user || { name: 'User' }; // Fallback
-    localStorage.setItem('vekku_token', token);
+function handleLoginSuccess(access, refresh, user) {
+    console.log("Handling login success:", { access, refresh, user });
+    
+    accessToken = access;
+    refreshToken = refresh;
+    currentUser = user || { name: 'User' }; 
+    
+    localStorage.setItem('vekku_access_token', access);
+    localStorage.setItem('vekku_refresh_token', refresh);
+    
+    const accessInput = document.getElementById('accessTokenInput');
+    const refreshInput = document.getElementById('refreshTokenInput');
+    
+    if (accessInput) accessInput.value = access;
+    else console.error("Element accessTokenInput not found!");
+    
+    if (refreshInput) refreshInput.value = refresh;
+    else console.error("Element refreshTokenInput not found!");
+    
     showAuthenticatedState();
+}
+
+function updateTokensFromInput() {
+    const newAccess = document.getElementById('accessTokenInput').value;
+    const newRefresh = document.getElementById('refreshTokenInput').value;
+    
+    accessToken = newAccess;
+    refreshToken = newRefresh;
+    
+    localStorage.setItem('vekku_access_token', newAccess);
+    localStorage.setItem('vekku_refresh_token', newRefresh);
+    
+    alert('Tokens updated in local storage.');
 }
 
 function showAuthenticatedState() {
@@ -126,16 +169,20 @@ function showAuthenticatedState() {
     document.getElementById('userProfile').classList.remove('hidden');
     
     document.getElementById('userNameDisplay').textContent = currentUser?.name || 'User';
-    document.getElementById('tokenDisplay').textContent = authToken.substring(0, 15) + '...';
 
     // Auto load data
     fetchTags();
 }
 
 function logout() {
-    authToken = null;
+    accessToken = null;
+    refreshToken = null;
     currentUser = null;
-    localStorage.removeItem('vekku_token');
+    localStorage.removeItem('vekku_access_token');
+    localStorage.removeItem('vekku_refresh_token');
+    
+    document.getElementById('accessTokenInput').value = '';
+    document.getElementById('refreshTokenInput').value = '';
     
     document.getElementById('userProfile').classList.add('hidden');
     document.getElementById('loginForm').classList.remove('hidden');
@@ -161,7 +208,10 @@ function showTab(tabName) {
 // --- Tags ---
 
 async function fetchTags() {
-    if (!authToken) return;
+    // If we have an access token (either in variable or input), try fetching
+    const currentToken = document.getElementById('accessTokenInput').value || accessToken;
+    if (!currentToken) return;
+
     try {
         const res = await apiCall('/tag');
         renderTags(res.data || res); // Handle paginated or list response
@@ -189,11 +239,17 @@ function renderTags(tags) {
 
 async function createTag() {
     const name = document.getElementById('newTagName').value;
-    if (!name) return;
+    const semantic = document.getElementById('newTagSemantic').value;
+    
+    if (!name || !semantic) {
+        alert("Name and Semantic Concept are required");
+        return;
+    }
     
     try {
-        await apiCall('/tag', 'POST', { name });
+        await apiCall('/tag', 'POST', { name, semantic });
         document.getElementById('newTagName').value = '';
+        document.getElementById('newTagSemantic').value = '';
         fetchTags();
     } catch (e) {}
 }
@@ -209,7 +265,9 @@ async function deleteTag(id) {
 // --- Content ---
 
 async function fetchContent() {
-    if (!authToken) return;
+    const currentToken = document.getElementById('accessTokenInput').value || accessToken;
+    if (!currentToken) return;
+
     try {
         const res = await apiCall('/content');
         renderContent(res.data || res);
@@ -229,10 +287,13 @@ function renderContent(contents) {
         const li = document.createElement('li');
         li.innerHTML = `
             <div>
-                <strong>${item.title}</strong>
+                <strong>${item.title}</strong> <small>(${item.contentType})</small>
                 <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;">${item.body.substring(0, 50)}...</p>
             </div>
-            <button class="danger" style="width:auto; padding: 2px 8px; font-size: 0.8em;" onclick="deleteContent('${item.id}')">Delete</button>
+            <div>
+                <button class="secondary" style="width:auto; padding: 2px 8px; font-size: 0.8em; margin-right: 5px;" onclick="fetchSuggestions('${item.id}')">Suggestions</button>
+                <button class="danger" style="width:auto; padding: 2px 8px; font-size: 0.8em;" onclick="deleteContent('${item.id}')">Delete</button>
+            </div>
         `;
         list.appendChild(li);
     });
@@ -240,13 +301,13 @@ function renderContent(contents) {
 
 async function createContent() {
     const title = document.getElementById('contentTitle').value;
-    const body = document.getElementById('contentBody').value;
+    const content = document.getElementById('contentBody').value; // Mapped to 'content' in payload
     const contentType = document.getElementById('contentType').value;
 
-    if (!title || !body) return;
+    if (!title || !content) return;
 
     try {
-        await apiCall('/content', 'POST', { title, body, contentType });
+        await apiCall('/content', 'POST', { title, content, contentType });
         document.getElementById('contentTitle').value = '';
         document.getElementById('contentBody').value = '';
         fetchContent();
@@ -260,4 +321,43 @@ async function deleteContent(id) {
         await apiCall(`/content/${id}`, 'DELETE');
         fetchContent();
     } catch (e) {}
+}
+
+async function fetchSuggestions(contentId) {
+    try {
+        const res = await apiCall(`/suggestions/content/${contentId}`);
+        renderSuggestions(res);
+    } catch (e) {}
+}
+
+function renderSuggestions(suggestions) {
+    const area = document.getElementById('suggestionsArea');
+    const list = document.getElementById('suggestionsList');
+    list.innerHTML = '';
+    
+    if (!suggestions || suggestions.length === 0) {
+        list.innerHTML = '<li>No suggestions found.</li>';
+    } else {
+        suggestions.forEach(s => {
+            const li = document.createElement('li');
+            li.style.borderBottom = '1px solid #bae6fd';
+            li.style.padding = '8px 0';
+            
+            // s.tagId, s.name, s.score are returned by backend
+            const tagName = s.name || 'Unknown Tag';
+            const score = parseFloat(s.score).toFixed(4); // Format score
+            
+            li.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500; color: #0c4a6e;">${tagName}</span>
+                    <span style="font-family: monospace; font-size: 0.85em; background: #fff; padding: 2px 6px; border-radius: 4px; color: #0284c7;">
+                        Score: ${score}
+                    </span>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+    }
+    
+    area.classList.remove('hidden');
 }

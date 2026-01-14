@@ -1,12 +1,16 @@
 import { Hono } from "hono";
 import { getTagService } from "./index";
+import { verifyJwt } from "../../lib/jwt";
 
 type Bindings = {
   DATABASE_URL: string;
 };
 
 type Variables = {
-  user: any;
+  user: {
+    id: string;
+    role: string;
+  };
   session: any;
 };
 
@@ -14,9 +18,25 @@ const tagRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Middleware to protect all tag routes
 tagRouter.use("*", async (c, next) => {
-  if (!c.get("user")) {
-    return c.json({ error: "Unauthorized" }, 401);
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader) {
+    return c.json({ error: "Unauthorized: Missing Authorization header" }, 401);
   }
+
+  const token = authHeader.split(" ")[1]; // Bearer <token>
+  if (!token) {
+    return c.json({ error: "Unauthorized: Malformed token" }, 401);
+  }
+
+  const payload = await verifyJwt(token);
+  if (!payload) {
+    return c.json({ error: "Unauthorized: Invalid token" }, 401);
+  }
+
+  c.set("user", {
+    id: payload.sub as string,
+    role: payload.role as string,
+  });
   await next();
 });
 

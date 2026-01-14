@@ -71,4 +71,14 @@ export class AuthServiceImpl implements IAuthService {
       refreshToken,
     };
   }
+
+  async checkUserExists(email: string): Promise<boolean> {
+    const existing = await this.db
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(eq(schema.user.username, email))
+      .limit(1);
+
+    return existing.length > 0;
+  }
 }

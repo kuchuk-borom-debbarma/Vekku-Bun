@@ -1,5 +1,12 @@
 # TODO
+- [ ] **Refactor: Hard Deletes**
+    - [ ] Remove `is_deleted` and `deleted_at` columns from all tables.
+    - [ ] Implement hard delete logic for Tags, Contents, Suggestions, and Embeddings.
+- [ ] **Refactor: Transactions**
+    - [ ] Wrap multi-step operations (e.g., Tag Creation, Content Update) in DB transactions for atomicity.
+
 - Introduce Async operation for stuff like tag suggestions, etc
+- [ ] **Adaptive Semantic Learning**
 - [ ] **Adaptive Semantic Learning**
     - [ ] Update `user_tags` schema (add `context_embedding`, `usage_count`, `last_learned_at`)
     - [ ] Implement `reinforceTag` in `TagService` (Centroid-based Moving Average)

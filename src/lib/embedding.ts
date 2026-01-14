@@ -73,8 +73,13 @@ const cloudflareEmbeddingService: IEmbeddingService = {
 export const getEmbeddingService = (env?: {
   WORKER?: string;
 }): IEmbeddingService => {
-  // Use Cloudflare service if WORKER env var is present (indicating production/worker env)
-  // or if we explicitly want to force it via config.
-  // For now, defaulting to local if not specified, similar to hasher.
-  return env?.WORKER ? cloudflareEmbeddingService : localEmbeddingService;
+  const hasCloudflareCreds = 
+    process.env.CLOUDFLARE_WORKER_ACCOUNT_ID && 
+    process.env.CLOUDFLARE_WORKER_AI_API_KEY;
+
+  if (env?.WORKER || hasCloudflareCreds) {
+    return cloudflareEmbeddingService;
+  }
+
+  return localEmbeddingService;
 };

@@ -13,6 +13,14 @@ const authRouter = new Hono<{ Bindings: Bindings }>();
 // 1. Request Signup (Stateless)
 authRouter.post("/signup/request", async (c) => {
   const { email, password, name } = await c.req.json();
+  const authService = getAuthService();
+
+  // Check if user already exists
+  const exists = await authService.checkUserExists(email);
+  if (exists) {
+    return c.json({ error: "User with this email already exists" }, 409);
+  }
+
   const hasher = getHasher(c.env);
   
   // Hash password immediately so we don't send plain password in token

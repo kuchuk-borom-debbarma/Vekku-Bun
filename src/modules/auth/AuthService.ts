@@ -19,4 +19,6 @@ export interface IAuthService {
     email: string,
     password: string,
   ): Promise<AuthUser>;
+
+  checkUserExists(email: string): Promise<boolean>;
 }

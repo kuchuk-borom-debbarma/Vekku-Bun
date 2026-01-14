@@ -176,9 +176,18 @@
             <!-- Logged In State -->
             <div id="userProfile" class="hidden">
                 <h4>Welcome, <span id="userNameDisplay">User</span></h4>
-                <div style="word-break: break-all; font-size: 0.8em; color: var(--text-muted); margin-bottom: 10px;">
-                    Token: <span id="tokenDisplay">...</span>
+                
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 0.8em; font-weight: bold;">Access Token</label>
+                    <input type="text" id="accessTokenInput" placeholder="Access Token" style="font-size: 0.8em;">
                 </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 0.8em; font-weight: bold;">Refresh Token</label>
+                    <input type="text" id="refreshTokenInput" placeholder="Refresh Token" style="font-size: 0.8em;">
+                </div>
+
+                <button class="secondary" onclick="updateTokensFromInput()" style="margin-bottom: 10px; font-size: 0.8em;">Update Tokens Manually</button>
                 <button class="danger" onclick="logout()">Logout</button>
             </div>
         </div>
@@ -201,8 +210,9 @@
             
             <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-color); border-radius: 4px;">
                 <h4>Create Tag</h4>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="newTagName" placeholder="Tag Name" style="margin-bottom: 0;">
+                <div style="display: flex; gap: 10px; flex-direction: column;">
+                    <input type="text" id="newTagName" placeholder="Tag Name" style="margin-bottom: 5px;">
+                    <input type="text" id="newTagSemantic" placeholder="Semantic Concept (e.g., 'coding', 'science')" style="margin-bottom: 5px;">
                     <button onclick="createTag()" style="width: auto; margin-bottom: 0;">Create</button>
                 </div>
             </div>
@@ -225,11 +235,20 @@
                 <textarea id="contentBody" rows="3" placeholder="Body content..."></textarea>
                 <div style="display: flex; gap: 10px;">
                     <select id="contentType" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border);">
-                        <option value="text">Text</option>
-                        <option value="markdown">Markdown</option>
+                        <option value="PLAIN_TEXT">Text</option>
+                        <option value="MARKDOWN">Markdown</option>
                     </select>
                     <button onclick="createContent()" style="width: auto; margin-bottom: 0;">Create</button>
                 </div>
+            </div>
+            
+            <!-- Suggestions View Area -->
+            <div id="suggestionsArea" class="hidden" style="margin-bottom: 20px; padding: 15px; background: #e0f2fe; border-radius: 4px; border: 1px solid #bae6fd;">
+                <div style="display: flex; justify-content: space-between;">
+                    <h4 style="margin: 0 0 10px 0;">Suggestions for Content</h4>
+                    <button class="secondary" style="width: auto; padding: 2px 6px; font-size: 0.8em;" onclick="document.getElementById('suggestionsArea').classList.add('hidden')">Close</button>
+                </div>
+                <ul id="suggestionsList" style="padding-left: 20px; margin: 0;"></ul>
             </div>
 
             <ul id="contentList" class="item-list">
@@ -246,6 +265,6 @@
     </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
