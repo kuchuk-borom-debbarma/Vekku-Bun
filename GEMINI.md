@@ -73,3 +73,14 @@ The project uses a **Modular Functional** architecture.
 *   **Testing:** Mock dependencies by passing mock objects directly to function arguments.
 
 *   **Pagination:** Always use the `getTagsOfUser` pattern (3-query parallel execution) for listing large datasets.
+
+### 5. Web UI Tester
+A simple HTML/JS dashboard is available in `test/web-ui` to test Auth, Tags, and Content flows visually.
+*   **Run:** `bun run test:ui` (serves on port 8080).
+
+### 6. Database Extensions
+*   **pgvector:** Required for embeddings.
+*   **pg_search:** Required for advanced full-text search (Neon/ParadeDB).
+
+## Recent Refactors
+*   **Semantic Tagging:** `tag_suggestions` table was renamed to `content_tag_suggestions`. Tags now directly link to `tag_embeddings` via `fk_embedding_id`.
