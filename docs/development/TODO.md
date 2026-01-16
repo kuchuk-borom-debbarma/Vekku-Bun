@@ -1,7 +1,7 @@
 # TODO
-- [ ] **Refactor: Hard Deletes**
-    - [ ] Remove `is_deleted` and `deleted_at` columns from all tables.
-    - [ ] Implement hard delete logic for Tags, Contents, Suggestions, and Embeddings.
+- [x] **Refactor: Hard Deletes**
+    - [x] Remove `is_deleted` and `deleted_at` columns from all tables.
+    - [x] Implement hard delete logic for Tags, Contents, Suggestions, and Embeddings.
 - [ ] **Refactor: Transactions**
     - [ ] Wrap multi-step operations (e.g., Tag Creation, Content Update) in DB transactions for atomicity.
 
