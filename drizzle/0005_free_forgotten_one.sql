@@ -1,0 +1,1 @@
+ALTER TABLE "tag_embeddings" ALTER COLUMN "embedding" DROP NOT NULL;

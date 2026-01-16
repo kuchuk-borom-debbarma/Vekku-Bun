@@ -22,7 +22,8 @@ export class TagServiceImpl implements ITagService {
     const suggestionService = getTagSuggestionService();
 
     // 1. Learn the tag (Get/Create Concept ID)
-    const embeddingId = await suggestionService.learnTag(data.semantic);
+    // We only ensure it exists (fast). Embedding happens in background listener.
+    const embeddingId = await suggestionService.ensureConceptExists(data.semantic);
 
     // 2. Create User Tag Link
     const tagId = generateUUID([data.name, data.userId]);
@@ -83,7 +84,7 @@ export class TagServiceImpl implements ITagService {
 
     if (data.semantic) {
       const suggestionService = getTagSuggestionService();
-      newEmbeddingId = await suggestionService.learnTag(data.semantic);
+      newEmbeddingId = await suggestionService.ensureConceptExists(data.semantic);
     }
 
     const toUpdate: { name?: string; embeddingId?: string; updatedAt: Date } = {

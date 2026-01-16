@@ -36,6 +36,13 @@
       "when": 1768599300330,
       "tag": "0004_ambiguous_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1768600513079,
+      "tag": "0005_free_forgotten_one",
+      "breakpoints": true
     }
   ]
 }

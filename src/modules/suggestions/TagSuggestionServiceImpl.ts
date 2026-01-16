@@ -13,13 +13,33 @@ import type {
 } from "./TagSuggestionService";
 
 export class TagSuggestionServiceImpl implements ITagSuggestionService {
+  async ensureConceptExists(semantic: string): Promise<string> {
+    const db = getDb();
+    const conceptId = generateUUID([semantic]);
+
+    // Insert without embedding if it doesn't exist.
+    // If it exists, we do nothing (it might have embedding or not).
+    await db
+      .insert(tagEmbeddings)
+      .values({
+        id: conceptId,
+        semantic: semantic,
+        embedding: null, // Placeholder
+      })
+      .onConflictDoNothing();
+
+    return conceptId;
+  }
+
   async learnTag(semantic: string): Promise<string> {
     const db = getDb();
     const embedder = getEmbeddingService();
     const conceptId = generateUUID([semantic]);
 
-    // Generate embedding and upsert to ensure we have real data
+    // Generate embedding
     const embedding = await embedder.generateEmbedding(semantic);
+    
+    // Update or Insert with embedding
     await db
       .insert(tagEmbeddings)
       .values({

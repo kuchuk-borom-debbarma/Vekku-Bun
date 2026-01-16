@@ -36,6 +36,7 @@ mock.module("../../db", () => ({
 // Mock Suggestion Service
 const mockSuggestionService = {
   learnTag: mock(async () => "mock-embedding-id"),
+  ensureConceptExists: mock(async () => "mock-embedding-id"),
 };
 
 mock.module("../suggestions", () => ({
@@ -53,6 +54,7 @@ describe("TagService", () => {
     mockDb.update.mockClear();
     mockDb.delete.mockClear();
     mockSuggestionService.learnTag.mockClear();
+    mockSuggestionService.ensureConceptExists.mockClear();
   });
 
   describe("createTag", () => {
@@ -72,7 +74,7 @@ describe("TagService", () => {
 
       const result = await tagService.createTag(input);
 
-      expect(mockSuggestionService.learnTag).toHaveBeenCalledWith("office tasks");
+      expect(mockSuggestionService.ensureConceptExists).toHaveBeenCalledWith("office tasks");
       expect(mockDb.insert).toHaveBeenCalled();
       expect(result?.id).toBe(mockUuid);
       expect(result?.name).toBe("work");
@@ -136,7 +138,7 @@ describe("TagService", () => {
         semantic: "new-semantic",
       });
 
-      expect(mockSuggestionService.learnTag).toHaveBeenCalledWith("new-semantic");
+      expect(mockSuggestionService.ensureConceptExists).toHaveBeenCalledWith("new-semantic");
       expect(result?.semantic).toBe("new-semantic");
     });
   });
