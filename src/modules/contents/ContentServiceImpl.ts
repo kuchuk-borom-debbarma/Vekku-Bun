@@ -9,18 +9,22 @@ import {
   type IContentService,
 } from "./ContentService";
 import { getTagSuggestionService } from "../suggestions";
+import { getEventBus, TOPICS } from "../../lib/events";
 
 const SEGMENT_SIZE = 20;
 
 export class ContentServiceImpl implements IContentService {
   constructor(private db: NeonHttpDatabase<typeof schema>) {}
 
-  async createContent(data: {
-    title: string;
-    content: string;
-    contentType: ContentType;
-    userId: string;
-  }): Promise<Content | null> {
+  async createContent(
+    data: {
+      title: string;
+      content: string;
+      contentType: ContentType;
+      userId: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<Content | null> {
     //validation
     if (!data.title || !data.content || !data.userId) {
       throw new Error("Invalid data");
@@ -40,22 +44,27 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
-    // Trigger Suggestion Generation (Fire and forget or await?)
-    // Awaiting ensures consistency for the user's immediate view.
+    // Trigger Event-Driven Suggestions
     try {
-      const suggestionService = getTagSuggestionService();
-      const threshold = process.env.EMBEDDING_THRESHOLD ? parseFloat(process.env.EMBEDDING_THRESHOLD) : 0.4;
-      const matchCount = process.env.EMBEDDING_MATCH_COUNT ? parseInt(process.env.EMBEDDING_MATCH_COUNT) : 20;
-      
-      await suggestionService.createSuggestionsForContent({
-        content: content.body,
-        contentId: content.id,
-        userId: content.userId,
-        suggestionsCount: matchCount,
-        threshold: threshold,
-      });
+      const eventBus = getEventBus();
+      // We don't await here to return to the user faster.
+      // If ctx is provided, eventBus.publish will use ctx.waitUntil internally.
+      eventBus.publish(
+        TOPICS.CONTENT.CREATED, 
+        { 
+          id: content.id,
+          title: content.title,
+          body: content.body,
+          userId: content.userId,
+          contentType: content.contentType as ContentType,
+          createdAt: content.createdAt,
+          updatedAt: content.updatedAt,
+        },
+        content.userId,
+        ctx
+      );
     } catch (e) {
-      console.error("Failed to generate suggestions for content:", e);
+      console.error("Failed to publish content.created event:", e);
     }
 
     return {
@@ -69,13 +78,16 @@ export class ContentServiceImpl implements IContentService {
     };
   }
 
-  async updateContent(data: {
-    id: string;
-    userId: string;
-    title?: string;
-    content?: string;
-    contentType?: ContentType;
-  }): Promise<Content | null> {
+  async updateContent(
+    data: {
+      id: string;
+      userId: string;
+      title?: string;
+      content?: string;
+      contentType?: ContentType;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<Content | null> {
     const toUpdate: {
       title?: string;
       body?: string;
@@ -101,22 +113,26 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
-    // Regenerate suggestions if content body changed
+    // Regenerate suggestions via Event
     if (data.content) {
          try {
-            const suggestionService = getTagSuggestionService();
-            const threshold = process.env.EMBEDDING_THRESHOLD ? parseFloat(process.env.EMBEDDING_THRESHOLD) : 0.4;
-            const matchCount = process.env.EMBEDDING_MATCH_COUNT ? parseInt(process.env.EMBEDDING_MATCH_COUNT) : 20;
-
-            await suggestionService.createSuggestionsForContent({
-                content: content.body,
-                contentId: content.id,
-                userId: content.userId,
-                suggestionsCount: matchCount,
-                threshold: threshold,
-            });
+            const eventBus = getEventBus();
+            eventBus.publish(
+                TOPICS.CONTENT.UPDATED, 
+                { 
+                    id: content.id,
+                    title: content.title,
+                    body: content.body,
+                    userId: content.userId,
+                    contentType: content.contentType as ContentType,
+                    createdAt: content.createdAt,
+                    updatedAt: content.updatedAt,
+                },
+                content.userId,
+                ctx
+            );
          } catch (e) {
-             console.error("Failed to regenerate suggestions on update:", e);
+             console.error("Failed to publish content.updated event:", e);
          }
     }
 

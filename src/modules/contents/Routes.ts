@@ -47,12 +47,15 @@ contentRouter.post("/", async (c) => {
   const contentService = getContentService();
 
   try {
-    const result = await contentService.createContent({
-      title: data.title,
-      content: data.content,
-      contentType: data.contentType || ContentType.PLAIN_TEXT,
-      userId: user.id,
-    });
+    const result = await contentService.createContent(
+      {
+        title: data.title,
+        content: data.content,
+        contentType: data.contentType || ContentType.PLAIN_TEXT,
+        userId: user.id,
+      },
+      c.executionCtx,
+    );
     return c.json(result, 201);
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400);
@@ -67,13 +70,16 @@ contentRouter.patch("/:id", async (c) => {
   const contentService = getContentService();
 
   try {
-    const result = await contentService.updateContent({
-      id,
-      userId: user.id,
-      title: data.title,
-      content: data.content,
-      contentType: data.contentType,
-    });
+    const result = await contentService.updateContent(
+      {
+        id,
+        userId: user.id,
+        title: data.title,
+        content: data.content,
+        contentType: data.contentType,
+      },
+      c.executionCtx,
+    );
 
     if (!result) {
       return c.json({ error: "Content not found or unauthorized" }, 404);

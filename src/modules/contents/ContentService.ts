@@ -16,20 +16,26 @@ export enum ContentType {
 }
 
 export interface IContentService {
-  createContent(data: {
-    title: string;
-    content: string;
-    contentType: ContentType;
-    userId: string;
-  }): Promise<Content | null>;
+  createContent(
+    data: {
+      title: string;
+      content: string;
+      contentType: ContentType;
+      userId: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<Content | null>;
 
-  updateContent(data: {
-    id: string;
-    userId: string;
-    title?: string;
-    content?: string;
-    contentType?: ContentType;
-  }): Promise<Content | null>;
+  updateContent(
+    data: {
+      id: string;
+      userId: string;
+      title?: string;
+      content?: string;
+      contentType?: ContentType;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<Content | null>;
 
   deleteContent(id: string, userId: string): Promise<boolean>;
 

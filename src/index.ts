@@ -4,6 +4,10 @@ import { tagRouter } from "./modules/tags/Routes";
 import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
+import { initSuggestionListeners } from "./modules/suggestions";
+
+// Initialize global event listeners
+initSuggestionListeners();
 
 type Bindings = {
   DATABASE_URL: string;
