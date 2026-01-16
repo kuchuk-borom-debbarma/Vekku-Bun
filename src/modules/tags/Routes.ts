@@ -40,32 +40,70 @@ tagRouter.use("*", async (c, next) => {
   await next();
 });
 
+// Create Tag
 tagRouter.post("/", async (c) => {
   const data = await c.req.json();
   const user = c.get("user");
   const tagService = getTagService();
-  
-  const result = await tagService.createTag({ ...data, userId: user.id });
-  return c.json(result);
+
+  try {
+    const result = await tagService.createTag(
+      {
+        name: data.name,
+        semantic: data.semantic,
+        userId: user.id,
+      },
+      c.executionCtx,
+    );
+    return c.json(result, 201);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
 });
 
+// Update Tag
 tagRouter.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const data = await c.req.json();
   const user = c.get("user");
   const tagService = getTagService();
 
-  const result = await tagService.updateTag({ ...data, id, userId: user.id });
-  return c.json(result);
+  try {
+    const result = await tagService.updateTag(
+      {
+        id,
+        userId: user.id,
+        name: data.name,
+        semantic: data.semantic,
+      },
+      c.executionCtx,
+    );
+
+    if (!result) {
+      return c.json({ error: "Tag not found or unauthorized" }, 404);
+    }
+
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
 });
 
+// Delete Tag
 tagRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const user = c.get("user");
   const tagService = getTagService();
 
-  const result = await tagService.deleteTag({ id, userId: user.id });
-  return c.json({ success: result });
+  const success = await tagService.deleteTag(
+    { id, userId: user.id },
+    c.executionCtx,
+  );
+  if (!success) {
+    return c.json({ error: "Tag not found or unauthorized" }, 404);
+  }
+
+  return c.json({ success: true });
 });
 
 tagRouter.get("/", async (c) => {

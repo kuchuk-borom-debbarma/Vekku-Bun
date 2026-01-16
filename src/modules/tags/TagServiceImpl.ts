@@ -5,15 +5,19 @@ import type { ChunkPaginationData } from "../../lib/pagination";
 import type { ITagService, UserTag } from "./TagService";
 import { getDb } from "../../db";
 import { getTagSuggestionService } from "../suggestions";
+import { getEventBus, TOPICS } from "../../lib/events";
 
 const SEGMENT_SIZE = 2000;
 
 export class TagServiceImpl implements ITagService {
-  async createTag(data: {
-    name: string;
-    semantic: string;
-    userId: string;
-  }): Promise<UserTag | null> {
+  async createTag(
+    data: {
+      name: string;
+      semantic: string;
+      userId: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<UserTag | null> {
     const db = getDb();
     const suggestionService = getTagSuggestionService();
 
@@ -43,7 +47,7 @@ export class TagServiceImpl implements ITagService {
 
     const tag = result[0];
     if (tag) {
-      return {
+      const userTag = {
         id: tag.id,
         name: tag.name,
         semantic: data.semantic,
@@ -51,16 +55,28 @@ export class TagServiceImpl implements ITagService {
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
       };
+
+      // Publish Event
+      try {
+        getEventBus().publish(TOPICS.TAG.CREATED, userTag, tag.userId, ctx);
+      } catch (e) {
+        console.error("Failed to publish tag.created event:", e);
+      }
+
+      return userTag;
     }
     return null;
   }
 
-  async updateTag(data: {
-    id: string;
-    userId: string;
-    name?: string;
-    semantic?: string;
-  }): Promise<UserTag | null> {
+  async updateTag(
+    data: {
+      id: string;
+      userId: string;
+      name?: string;
+      semantic?: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<UserTag | null> {
     const db = getDb();
     
     let newEmbeddingId: string | undefined;
@@ -98,7 +114,7 @@ export class TagServiceImpl implements ITagService {
           finalSemantic = concept[0]?.semantic || "";
        }
 
-      return {
+      const userTag = {
         id: tag.id,
         name: tag.name,
         semantic: finalSemantic!,
@@ -106,11 +122,23 @@ export class TagServiceImpl implements ITagService {
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
       };
+
+      // Publish Event
+      try {
+        getEventBus().publish(TOPICS.TAG.UPDATED, userTag, tag.userId, ctx);
+      } catch (e) {
+        console.error("Failed to publish tag.updated event:", e);
+      }
+
+      return userTag;
     }
     return null;
   }
 
-  async deleteTag(data: { id: string; userId: string }): Promise<boolean> {
+  async deleteTag(
+    data: { id: string; userId: string },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<boolean> {
     const db = getDb();
     const result = await db
       .delete(schema.userTags)
@@ -122,7 +150,17 @@ export class TagServiceImpl implements ITagService {
       )
       .returning();
 
-    return result.length > 0;
+    if (result.length > 0) {
+      // Publish Event
+      try {
+        getEventBus().publish(TOPICS.TAG.DELETED, { id: data.id, userId: data.userId }, data.userId, ctx);
+      } catch (e) {
+        console.error("Failed to publish tag.deleted event:", e);
+      }
+      return true;
+    }
+
+    return false;
   }
 
   async getTagsOfUser(data: {

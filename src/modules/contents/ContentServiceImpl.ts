@@ -158,7 +158,17 @@ export class ContentServiceImpl implements IContentService {
       )
       .returning();
 
-    return result.length > 0;
+    if (result.length > 0) {
+      try {
+        const eventBus = getEventBus();
+        eventBus.publish(TOPICS.CONTENT.DELETED, { id, userId }, userId);
+      } catch (e) {
+        console.error("Failed to publish content.deleted event:", e);
+      }
+      return true;
+    }
+
+    return false;
   }
 
   async getContentById(id: string): Promise<Content | null> {

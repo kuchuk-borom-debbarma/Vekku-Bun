@@ -10,20 +10,29 @@ export type UserTag = {
 };
 
 export interface ITagService {
-  createTag(data: {
-    name: string;
-    semantic: string;
-    userId: string;
-  }): Promise<UserTag | null>;
+  createTag(
+    data: {
+      name: string;
+      semantic: string;
+      userId: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<UserTag | null>;
 
-  updateTag(data: {
-    id: string;
-    userId: string;
-    name?: string;
-    semantic?: string;
-  }): Promise<UserTag | null>;
+  updateTag(
+    data: {
+      id: string;
+      userId: string;
+      name?: string;
+      semantic?: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<UserTag | null>;
 
-  deleteTag(data: { id: string; userId: string }): Promise<boolean>;
+  deleteTag(
+    data: { id: string; userId: string },
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<boolean>;
 
   getTagsOfUser(data: {
     userId: string;

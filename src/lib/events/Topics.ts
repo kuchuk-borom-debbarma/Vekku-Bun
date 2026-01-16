@@ -9,6 +9,7 @@ export const TOPICS = {
   },
   TAG: {
     CREATED: "tag.created",
+    UPDATED: "tag.updated",
     DELETED: "tag.deleted",
   }
 } as const;
