@@ -7,8 +7,6 @@ export type UserTag = {
   userId: string;
   createdAt: Date;
   updatedAt: Date | null;
-  deletedAt: Date | null;
-  isDeleted: boolean;
 };
 
 export interface ITagService {

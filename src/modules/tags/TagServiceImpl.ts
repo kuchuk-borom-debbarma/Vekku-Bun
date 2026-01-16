@@ -34,7 +34,6 @@ export class TagServiceImpl implements ITagService {
       .onConflictDoUpdate({
         target: schema.userTags.id,
         set: {
-          isDeleted: false,
           updatedAt: new Date(),
           name: data.name,
           embeddingId: embeddingId,
@@ -51,8 +50,6 @@ export class TagServiceImpl implements ITagService {
         userId: tag.userId,
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
-        deletedAt: tag.deletedAt,
-        isDeleted: tag.isDeleted,
       };
     }
     return null;
@@ -86,7 +83,6 @@ export class TagServiceImpl implements ITagService {
         and(
           eq(schema.userTags.id, data.id),
           eq(schema.userTags.userId, data.userId),
-          eq(schema.userTags.isDeleted, false),
         ),
       )
       .returning();
@@ -109,8 +105,6 @@ export class TagServiceImpl implements ITagService {
         userId: tag.userId,
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
-        deletedAt: tag.deletedAt,
-        isDeleted: tag.isDeleted,
       };
     }
     return null;
@@ -119,8 +113,7 @@ export class TagServiceImpl implements ITagService {
   async deleteTag(data: { id: string; userId: string }): Promise<boolean> {
     const db = getDb();
     const result = await db
-      .update(schema.userTags)
-      .set({ updatedAt: new Date(), isDeleted: true })
+      .delete(schema.userTags)
       .where(
         and(
           eq(schema.userTags.id, data.id),
@@ -149,10 +142,7 @@ export class TagServiceImpl implements ITagService {
     }
 
     // 1. Resolve Cursor (Timestamp lookup if chunkId is provided)
-    let whereClause = and(
-      eq(schema.userTags.userId, userId),
-      eq(schema.userTags.isDeleted, false),
-    );
+    let whereClause = eq(schema.userTags.userId, userId);
 
     if (chunkId) {
       const [cursorTag] = await db
@@ -169,7 +159,6 @@ export class TagServiceImpl implements ITagService {
       if (cursorTag) {
         whereClause = and(
           eq(schema.userTags.userId, userId),
-          eq(schema.userTags.isDeleted, false),
           sql`(${schema.userTags.createdAt}, ${schema.userTags.id}) <= (${cursorTag.createdAt}, ${chunkId})`,
         )!;
       }
@@ -218,8 +207,6 @@ export class TagServiceImpl implements ITagService {
           userId: row!.tag.userId,
           createdAt: row!.tag.createdAt,
           updatedAt: row!.tag.updatedAt,
-          deletedAt: row!.tag.deletedAt,
-          isDeleted: row!.tag.isDeleted,
         }));
     }
 

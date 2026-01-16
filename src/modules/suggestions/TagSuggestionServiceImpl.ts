@@ -67,7 +67,6 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
       .where(
         and(
           eq(userTags.userId, data.userId),
-          eq(userTags.isDeleted, false),
           sql`${distance} <= ${data.threshold}` // Filter by distance in DB
         )
       )
@@ -108,10 +107,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
       .from(contentTagSuggestions)
       .innerJoin(userTags, eq(contentTagSuggestions.tagId, userTags.id))
       .where(
-        and(
-          eq(contentTagSuggestions.contentId, contentId),
-          eq(contentTagSuggestions.isDeleted, false),
-        ),
+        eq(contentTagSuggestions.contentId, contentId),
       );
 
     return results.sort((a, b) => parseFloat(a.score) - parseFloat(b.score));

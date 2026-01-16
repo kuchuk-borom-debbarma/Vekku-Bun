@@ -62,20 +62,16 @@ export const userTags = pgTable(
       .references(() => tagEmbeddings.id),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
-    deletedAt: timestamp("deleted_at"),
-    isDeleted: boolean("is_deleted").notNull().default(false),
   },
   (table) => [
     index("tags_pagination_idx").on(
       table.userId,
-      table.isDeleted,
       table.createdAt.desc(),
       table.id.desc(),
     ),
-    // Prevent duplicate tags for the same user (unless deleted)
+    // Prevent duplicate tags for the same user
     uniqueIndex("unique_user_tag_active")
-      .on(table.userId, table.name)
-      .where(sql`${table.isDeleted} = false`),
+      .on(table.userId, table.name),
   ],
 );
 
@@ -91,13 +87,10 @@ export const contents = pgTable(
     contentType: text().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
-    deletedAt: timestamp("deleted_at"),
-    isDeleted: boolean("is_deleted").notNull().default(false),
   },
   (table) => [
     index("contents_pagination_idx").on(
       table.userId,
-      table.isDeleted,
       table.createdAt.desc(),
       table.id.desc(),
     ),
@@ -116,8 +109,6 @@ export const contentTagSuggestions = pgTable(
     score: text().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
-    deletedAt: timestamp("deleted_at"),
-    isDeleted: boolean("is_deleted").notNull().default(false),
   },
   (table) => [
     index("content_tag_suggestions_content_idx").on(table.contentId),

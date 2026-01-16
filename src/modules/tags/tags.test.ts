@@ -65,8 +65,6 @@ describe("TagService", () => {
         embeddingId: "mock-embedding-id",
         createdAt: new Date(),
         updatedAt: new Date(),
-        deletedAt: null,
-        isDeleted: false,
       };
 
       // Mock insert returning the tag
@@ -99,10 +97,8 @@ describe("TagService", () => {
         name: "new-name",
         userId: "u1",
         embeddingId: "old-emb-id",
-        updatedAt: new Date(),
         createdAt: new Date(),
-        deletedAt: null,
-        isDeleted: false,
+        updatedAt: new Date(),
       };
       // For semantic fetch fallback
       const mockConcept = [{ semantic: "old-semantic" }];
@@ -127,10 +123,8 @@ describe("TagService", () => {
         name: "work",
         userId: "u1",
         embeddingId: "new-emb-id", // Updated ID
-        updatedAt: new Date(),
         createdAt: new Date(),
-        deletedAt: null,
-        isDeleted: false,
+        updatedAt: new Date(),
       };
 
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
@@ -148,8 +142,8 @@ describe("TagService", () => {
   });
 
   describe("deleteTag", () => {
-    test("should return true when tag is successfully soft-deleted", async () => {
-      mockDb.update.mockImplementationOnce(() =>
+    test("should return true when tag is successfully hard-deleted", async () => {
+      mockDb.delete.mockImplementationOnce(() =>
         createMockQuery([{ id: "t1" }]),
       );
       const result = await tagService.deleteTag({ id: "t1", userId: "u1" });
@@ -157,7 +151,7 @@ describe("TagService", () => {
     });
 
     test("should return false if tag to delete is not found", async () => {
-      mockDb.update.mockImplementationOnce(() => createMockQuery([]));
+      mockDb.delete.mockImplementationOnce(() => createMockQuery([]));
       const result = await tagService.deleteTag({ id: "t1", userId: "u1" });
       expect(result).toBeFalse();
     });
@@ -175,8 +169,6 @@ describe("TagService", () => {
             userId: "u1",
             createdAt: new Date(),
             updatedAt: null,
-            deletedAt: null,
-            isDeleted: false,
           },
           embedding: { semantic: "S1" },
         },
@@ -187,8 +179,6 @@ describe("TagService", () => {
             userId: "u1",
             createdAt: new Date(),
             updatedAt: null,
-            deletedAt: null,
-            isDeleted: false,
           },
           embedding: { semantic: "S2" },
         },

@@ -66,8 +66,6 @@ export class ContentServiceImpl implements IContentService {
       contentType: content.contentType as ContentType,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
-      deletedAt: content.deletedAt,
-      isDeleted: content.isDeleted,
     };
   }
 
@@ -96,7 +94,6 @@ export class ContentServiceImpl implements IContentService {
         and(
           eq(schema.contents.id, data.id),
           eq(schema.contents.userId, data.userId),
-          eq(schema.contents.isDeleted, false),
         ),
       )
       .returning();
@@ -131,15 +128,12 @@ export class ContentServiceImpl implements IContentService {
       contentType: content.contentType as ContentType,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
-      deletedAt: content.deletedAt,
-      isDeleted: content.isDeleted,
     };
   }
 
   async deleteContent(id: string, userId: string): Promise<boolean> {
     const result = await this.db
-      .update(schema.contents)
-      .set({ isDeleted: true, deletedAt: new Date() })
+      .delete(schema.contents)
       .where(
         and(
           eq(schema.contents.id, id),
@@ -156,7 +150,7 @@ export class ContentServiceImpl implements IContentService {
       .select()
       .from(schema.contents)
       .where(
-        and(eq(schema.contents.id, id), eq(schema.contents.isDeleted, false)),
+        eq(schema.contents.id, id),
       )
       .limit(1);
 
@@ -171,8 +165,6 @@ export class ContentServiceImpl implements IContentService {
       contentType: content.contentType as ContentType,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
-      deletedAt: content.deletedAt,
-      isDeleted: content.isDeleted,
     };
   }
 
@@ -190,10 +182,7 @@ export class ContentServiceImpl implements IContentService {
       );
     }
 
-    let whereClause = and(
-      eq(schema.contents.userId, userId),
-      eq(schema.contents.isDeleted, false),
-    );
+    let whereClause = eq(schema.contents.userId, userId);
 
     if (chunkId) {
       const [cursorContent] = await this.db
@@ -210,7 +199,6 @@ export class ContentServiceImpl implements IContentService {
       if (cursorContent) {
         whereClause = and(
           eq(schema.contents.userId, userId),
-          eq(schema.contents.isDeleted, false),
           sql`(${schema.contents.createdAt}, ${schema.contents.id}) <= (${cursorContent.createdAt}, ${chunkId})`,
         )!;
       }
@@ -251,8 +239,6 @@ export class ContentServiceImpl implements IContentService {
           contentType: content.contentType as ContentType,
           createdAt: content.createdAt,
           updatedAt: content.updatedAt,
-          deletedAt: content.deletedAt,
-          isDeleted: content.isDeleted,
         }));
     }
 

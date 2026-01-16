@@ -8,8 +8,6 @@ export type Content = {
   contentType: ContentType;
   createdAt: Date;
   updatedAt: Date | null;
-  deletedAt: Date | null;
-  isDeleted: boolean;
 };
 
 export enum ContentType {
