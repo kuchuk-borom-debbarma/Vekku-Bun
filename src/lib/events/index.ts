@@ -1,4 +1,4 @@
-import { IEventBus } from "./EventBus";
+import type { IEventBus } from "./EventBus";
 import { InMemoryEventBus } from "./InMemoryEventBus";
 
 let eventBus: IEventBus | null = null;

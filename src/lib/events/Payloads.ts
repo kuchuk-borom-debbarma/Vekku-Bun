@@ -1,4 +1,4 @@
-import { Content } from "../../modules/contents/ContentService";
+import type { Content } from "../../modules/contents/ContentService";
 
 export interface ContentCreatedPayload {
   content: Content;
