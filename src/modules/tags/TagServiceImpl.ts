@@ -22,6 +22,8 @@ export class TagServiceImpl implements ITagService {
     // Normalize semantic string
     const normalizedSemantic = normalize(data.semantic);
 
+    const tagId = generateUUID();
+
     const result = await db
       .insert(schema.userTags)
       .values({
@@ -56,11 +58,11 @@ export class TagServiceImpl implements ITagService {
        * -------------------------------------------------
        * Instead of generating the vector embedding immediately (which is slow and calls external APIs),
        * we publish a 'TAG.CREATED' event.
-       * 
+       *
        * 1. The HTTP response is returned immediately to the user (Fast UI).
        * 2. The 'Listeners.ts' module picks up this event in the background.
        * 3. It generates the embedding and updates the 'tag_embeddings' table.
-       * 
+       *
        * The 'ctx.waitUntil' ensures the Cloudflare Worker stays alive until the event is processed.
        */
       try {
@@ -71,6 +73,7 @@ export class TagServiceImpl implements ITagService {
 
       return userTag;
     }
+    return null;
   }
 
   async updateTag(
