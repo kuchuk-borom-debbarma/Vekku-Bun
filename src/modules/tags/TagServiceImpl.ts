@@ -18,28 +18,17 @@ export class TagServiceImpl implements ITagService {
     ctx?: { waitUntil: (promise: Promise<any>) => void },
   ): Promise<UserTag | null> {
     const db = getDb();
-    
+
     // Normalize semantic string
     const normalizedSemantic = normalize(data.semantic);
 
-    // Create User Tag Link directly (No Embedding ID needed here)
-    const tagId = generateUUID([data.name, data.userId]);
-    
     const result = await db
       .insert(schema.userTags)
       .values({
-        id: tagId,
+        id: generateUUID(),
         userId: data.userId,
         name: data.name,
         semantic: normalizedSemantic,
-      })
-      .onConflictDoUpdate({
-        target: schema.userTags.id,
-        set: {
-          updatedAt: new Date(),
-          name: data.name,
-          semantic: normalizedSemantic,
-        },
       })
       .returning();
 
@@ -54,7 +43,7 @@ export class TagServiceImpl implements ITagService {
         updatedAt: tag.updatedAt,
       };
 
-      // Publish Event -> This triggers the learning process in Listeners
+      // Publish Event
       try {
         getEventBus().publish(TOPICS.TAG.CREATED, userTag, tag.userId, ctx);
       } catch (e) {
@@ -76,7 +65,7 @@ export class TagServiceImpl implements ITagService {
     ctx?: { waitUntil: (promise: Promise<any>) => void },
   ): Promise<UserTag | null> {
     const db = getDb();
-    
+
     const toUpdate: { name?: string; semantic?: string; updatedAt: Date } = {
       updatedAt: new Date(),
     };
@@ -105,7 +94,7 @@ export class TagServiceImpl implements ITagService {
         updatedAt: tag.updatedAt,
       };
 
-      // Publish Event -> This triggers the re-learning process if semantic changed
+      // Publish Event
       try {
         getEventBus().publish(TOPICS.TAG.UPDATED, userTag, tag.userId, ctx);
       } catch (e) {
@@ -135,7 +124,12 @@ export class TagServiceImpl implements ITagService {
     if (result.length > 0) {
       // Publish Event
       try {
-        getEventBus().publish(TOPICS.TAG.DELETED, { id: data.id, userId: data.userId }, data.userId, ctx);
+        getEventBus().publish(
+          TOPICS.TAG.DELETED,
+          { id: data.id, userId: data.userId },
+          data.userId,
+          ctx,
+        );
       } catch (e) {
         console.error("Failed to publish tag.deleted event:", e);
       }
@@ -199,9 +193,7 @@ export class TagServiceImpl implements ITagService {
     const nextChunkId = hasNextChunk ? chunkIds[SEGMENT_SIZE]!.id : null;
 
     // 4. Page IDs
-    const pageIds = chunkIds
-      .slice(offset, offset + limit)
-      .map((row) => row.id);
+    const pageIds = chunkIds.slice(offset, offset + limit).map((row) => row.id);
 
     // 5. Fetch Full Data (No Join needed anymore)
     let pageData: UserTag[] = [];
@@ -212,7 +204,7 @@ export class TagServiceImpl implements ITagService {
         .where(inArray(schema.userTags.id, pageIds));
 
       const idMap = new Map(rows.map((r) => [r.id, r]));
-      
+
       pageData = pageIds
         .map((id) => idMap.get(id))
         .filter((item) => item !== undefined)
