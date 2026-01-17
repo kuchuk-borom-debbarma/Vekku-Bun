@@ -6,12 +6,17 @@ import { contentRouter } from "./modules/contents/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
 import { initSuggestionListeners } from "./modules/suggestions";
 import { getDb } from "./db";
+import { setJwtSecret } from "./lib/jwt";
+import { setEmbeddingConfig } from "./lib/embedding";
 
 // Initialize global event listeners
 initSuggestionListeners();
 
 type Bindings = {
   DATABASE_URL: string;
+  JWT_SECRET?: string;
+  CLOUDFLARE_WORKER_ACCOUNT_ID?: string;
+  CLOUDFLARE_WORKER_AI_API_KEY?: string;
   WORKER?: string;
 };
 
@@ -32,10 +37,36 @@ const createApp = (env: Bindings) => {
 };
 
 export default {
+  /**
+   * THE ADAPTER LAYER
+   * -----------------
+   * This 'fetch' handler acts as the bridge between the specific runtime platform 
+   * (e.g., Cloudflare Workers, Bun, Node) and the application's core logic.
+   * 
+   * Its primary responsibility is Dependency Injection & Configuration:
+   * 1. Extract secrets/bindings from the platform-specific 'env' object.
+   * 2. Inject them into the application's global state or service configurations.
+   * 
+   * This allows the Service Layer (TagServiceImpl, etc.) to remain "Platform Agnostic".
+   * Services don't need to know they are running on Cloudflare; they just use the 
+   * injected configuration.
+   */
   fetch(request: Request, env: Bindings, ctx: any) {
-    // Initialize DB with the secret from env
-    // This ensures subsequent getDb() calls in services work without arguments
+    // 1. Database Injection
+    // Initialize the DB connection with the secret from the environment.
+    // This sets the singleton instance used by 'getDb()' throughout the app.
     getDb(env.DATABASE_URL);
+
+    // 2. JWT Configuration Injection
+    if (env.JWT_SECRET) {
+      setJwtSecret(env.JWT_SECRET);
+    }
+
+    // 3. AI Service Configuration Injection
+    setEmbeddingConfig({
+      accountId: env.CLOUDFLARE_WORKER_ACCOUNT_ID,
+      apiKey: env.CLOUDFLARE_WORKER_AI_API_KEY,
+    });
 
     const bindings = { ...process.env, ...env } as Bindings;
     const app = createApp(bindings);

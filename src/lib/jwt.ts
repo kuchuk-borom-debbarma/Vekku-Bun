@@ -1,7 +1,11 @@
 import { sign, verify } from "hono/jwt";
 
-// Fallback is for dev only. In prod, ensure JWT_SECRET is set.
-const SECRET_KEY = process.env.JWT_SECRET || "default-secret-key-change-it";
+// Fallback is for dev only. In prod, ensure JWT_SECRET is set via setJwtSecret.
+let SECRET_KEY = "default-secret-key-change-it";
+
+export const setJwtSecret = (secret: string) => {
+  SECRET_KEY = secret;
+};
 
 export const generateSignupToken = async (data: Record<string, any>) => {
   const payload = {

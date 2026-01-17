@@ -25,10 +25,18 @@ export class TagServiceImpl implements ITagService {
     const result = await db
       .insert(schema.userTags)
       .values({
-        id: generateUUID(),
+        id: tagId,
         userId: data.userId,
         name: data.name,
         semantic: normalizedSemantic,
+      })
+      .onConflictDoUpdate({
+        target: schema.userTags.id,
+        set: {
+          updatedAt: new Date(),
+          name: data.name,
+          semantic: normalizedSemantic,
+        },
       })
       .returning();
 
@@ -43,7 +51,18 @@ export class TagServiceImpl implements ITagService {
         updatedAt: tag.updatedAt,
       };
 
-      // Publish Event
+      /**
+       * EVENT-DRIVEN ARCHITECTURE (Asynchronous Learning)
+       * -------------------------------------------------
+       * Instead of generating the vector embedding immediately (which is slow and calls external APIs),
+       * we publish a 'TAG.CREATED' event.
+       * 
+       * 1. The HTTP response is returned immediately to the user (Fast UI).
+       * 2. The 'Listeners.ts' module picks up this event in the background.
+       * 3. It generates the embedding and updates the 'tag_embeddings' table.
+       * 
+       * The 'ctx.waitUntil' ensures the Cloudflare Worker stays alive until the event is processed.
+       */
       try {
         getEventBus().publish(TOPICS.TAG.CREATED, userTag, tag.userId, ctx);
       } catch (e) {
@@ -52,7 +71,6 @@ export class TagServiceImpl implements ITagService {
 
       return userTag;
     }
-    return null;
   }
 
   async updateTag(

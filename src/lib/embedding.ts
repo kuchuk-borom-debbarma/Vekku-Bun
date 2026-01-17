@@ -2,6 +2,15 @@ export interface IEmbeddingService {
   generateEmbedding(text: string): Promise<number[]>;
 }
 
+let embeddingConfig: { accountId?: string; apiKey?: string } = {};
+
+export const setEmbeddingConfig = (config: {
+  accountId?: string;
+  apiKey?: string;
+}) => {
+  embeddingConfig = config;
+};
+
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
     // Return a zero vector of dimension 384 to match DB schema
@@ -12,8 +21,8 @@ const localEmbeddingService: IEmbeddingService = {
 
 const cloudflareEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
-    const accountId = process.env.CLOUDFLARE_WORKER_ACCOUNT_ID;
-    const apiKey = process.env.CLOUDFLARE_WORKER_AI_API_KEY;
+    const accountId = embeddingConfig.accountId;
+    const apiKey = embeddingConfig.apiKey;
 
     if (!accountId || !apiKey) {
       throw new Error(
@@ -73,9 +82,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
 export const getEmbeddingService = (env?: {
   WORKER?: string;
 }): IEmbeddingService => {
-  const hasCloudflareCreds = 
-    process.env.CLOUDFLARE_WORKER_ACCOUNT_ID && 
-    process.env.CLOUDFLARE_WORKER_AI_API_KEY;
+  const hasCloudflareCreds = embeddingConfig.accountId && embeddingConfig.apiKey;
 
   if (env?.WORKER || hasCloudflareCreds) {
     return cloudflareEmbeddingService;

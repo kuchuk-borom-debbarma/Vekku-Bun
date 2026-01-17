@@ -1,70 +1,64 @@
 # Project Architecture
 
-Vekku-Bun follows a **Modular Functional** architecture designed for simplicity, ease of maintenance, and platform independence (Bun / Cloudflare Workers).
+Vekku-Bun follows a **Modular Layered** architecture designed for simplicity, ease of maintenance, and platform independence (Bun / Cloudflare Workers).
 
 ## Core Principles
 
-1.  **Simplicity First:** Prefer simple exported functions over Classes and Dependency Injection containers.
-2.  **Explicit Dependencies:** Functions receive their dependencies (like `db`) as arguments. No global state or "magic" context injection inside services.
-3.  **Platform Agnostic:** The core logic depends only on standard Web APIs (Request/Response) and abstract interfaces, making it deployable on any edge runtime supported by Hono.
+1.  **Platform Agnostic:** The core logic depends only on standard Web APIs (Request/Response) and abstract interfaces. We use an **Adapter Pattern** at the entry point (`src/index.ts`) to inject platform-specific secrets into the application.
+2.  **Event-Driven:** Heavy operations (like AI Embedding generation) are decoupled from the main request loop using an internal Event Bus.
+3.  **Explicit Dependencies:** Services receive their dependencies (like `db` or `config`) either via constructor injection or via the singleton adapter configured at startup.
 
 ## Directory Structure
 
 ```text
 src/
 ├── db/              # Database Layer
-│   ├── index.ts     # Connection factory (getDb)
+│   ├── index.ts     # Connection factory (Singleton Adapter)
 │   ├── schema.ts    # Domain tables
 │   └── auth-schema.ts # Auth tables
 ├── lib/             # Shared Utilities
+│   ├── events/      # Event Bus & Topics
 │   ├── auth.ts      # Better Auth config
 │   ├── hashing.ts   # Hashing utilities
 │   └── ...
 ├── modules/         # Feature Modules
 │   ├── tags/
-│   │   ├── tags.routes.ts   # Hono Routes
-│   │   ├── tags.service.ts  # Pure business logic
+│   │   ├── Routes.ts        # Hono Routes
+│   │   ├── TagServiceImpl.ts # Business Logic (Class)
 │   │   └── tags.test.ts     # Tests
 │   └── ...
-└── index.ts         # App Entry Point & Wiring
+└── index.ts         # App Entry Point & Adapter Layer
 ```
 
 ## Layer Description
 
-### 1. Routes (`*.routes.ts`)
+### 1. The Entry Point / Adapter (`src/index.ts`)
+*   **Responsibility:** "Wires" the application to the runtime environment.
+*   **Injection:** It extracts secrets (DB URL, API Keys) from `env` (Cloudflare) or `process.env` (Node) and initializes the global configuration for services.
+*   **Hono App:** Creates the Hono instance and mounts the routes.
+
+### 2. Routes (`Routes.ts`)
 *   **Responsibility:** Handle HTTP requests, parse inputs, check permissions (via Context), and call Services.
-*   **Dependency Injection:** The route handler is responsible for instantiating/retrieving dependencies (e.g., getting `db` from `env`) and passing them to the Service.
+*   **Context:** Uses `c.get('user')` for auth context.
 
-```typescript
-// Example
-tagRouter.post("/", async (c) => {
-  const db = getDb(c.env.DATABASE_URL); // Retrieve Dependency
-  const result = await createTag(db, data); // Inject into Service
-  return c.json(result);
-});
-```
-
-### 2. Services (`*.service.ts`)
+### 3. Services (`*ServiceImpl.ts`)
 *   **Responsibility:** Pure business logic and database interactions.
-*   **Structure:** Exported functions.
-*   **Dependencies:** First argument is usually the Database or other services.
+*   **Structure:** Classes implementing Interfaces (e.g., `TagServiceImpl implements ITagService`).
+*   **Event Publishing:** Services publish events (e.g., `TAG.CREATED`) instead of calling other services directly for side effects.
 
-```typescript
-// Example
-export const createTag = async (db: NeonHttpDatabase, data: TagData) => {
-  return db.insert(...).values(...);
-};
-```
-
-### 3. Database (`src/db`)
+### 4. Database (`src/db`)
 *   Centralizes schema definitions.
-*   Provides `getDb(url)` to create a connection. Using `neon-http` for serverless compatibility.
+*   Provides `getDb()` singleton. This singleton is initialized by the Adapter layer at request start.
 
-### 4. Semantic Tagging & Suggestion Engine
+### 5. Semantic Tagging & Suggestion Engine
 *   **Documentation:** `docs/development/embedding-suggestions.md`
-*   **Strategy:** Uses `pgvector` for storing embeddings and `HNSW` indexes for fast similarity search.
-*   **Concept:** Separates "Global Concepts" (embeddings) from "User Tags" (links) to optimize storage and allow user-scoped vector searches.
+*   **Strategy:** Uses `pgvector` for storing embeddings.
+*   **Concept:** Separates "Global Concepts" (embeddings) from "User Tags" (links) to optimize storage.
 
-## Testing Strategy
-Tests are co-located with modules (`*.test.ts`).
-*   **Mocking:** Since services take dependencies as arguments, testing is straightforward. We create mock DB objects and pass them directly to the service functions.
+## Event-Driven Architecture
+
+We use a lightweight, in-memory Event Bus (`src/lib/events`) to decouple modules.
+
+*   **Publisher:** `TagService` publishes `TAG.CREATED`.
+*   **Subscriber:** `SuggestionListener` subscribes to `TAG.CREATED`.
+*   **Benefit:** The user gets a fast response after creating a tag. The heavy AI embedding generation happens in the background (using `ctx.waitUntil` on Cloudflare).
