@@ -5,6 +5,7 @@ import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
 import { initSuggestionListeners } from "./modules/suggestions";
+import { getDb } from "./db";
 
 // Initialize global event listeners
 initSuggestionListeners();
@@ -32,6 +33,10 @@ const createApp = (env: Bindings) => {
 
 export default {
   fetch(request: Request, env: Bindings, ctx: any) {
+    // Initialize DB with the secret from env
+    // This ensures subsequent getDb() calls in services work without arguments
+    getDb(env.DATABASE_URL);
+
     const bindings = { ...process.env, ...env } as Bindings;
     const app = createApp(bindings);
     return app.fetch(request, bindings, ctx);
