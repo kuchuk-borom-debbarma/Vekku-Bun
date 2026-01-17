@@ -1,12 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import {
-  tagEmbeddings,
-  userTags,
-  contentTagSuggestions,
-} from "../../db/schema";
+import { tagEmbeddings, userTags, contentTagSuggestions } from "../../db/schema";
 import { getEmbeddingService } from "../../lib/embedding";
-import { generateUUID } from "../../lib/uuid";
+import { generateUUID, normalize } from "../../lib/uuid";
 import type {
   ITagSuggestionService,
   ContentSuggestion,
@@ -15,7 +11,8 @@ import type {
 export class TagSuggestionServiceImpl implements ITagSuggestionService {
   async ensureConceptExists(semantic: string): Promise<string> {
     const db = getDb();
-    const conceptId = generateUUID([semantic]);
+    const normalized = normalize(semantic);
+    const conceptId = generateUUID([normalized]);
 
     // Insert without embedding if it doesn't exist.
     // If it exists, we do nothing (it might have embedding or not).
@@ -23,7 +20,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
       .insert(tagEmbeddings)
       .values({
         id: conceptId,
-        semantic: semantic,
+        semantic: normalized,
         embedding: null, // Placeholder
       })
       .onConflictDoNothing();
@@ -34,17 +31,18 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
   async learnTag(semantic: string): Promise<string> {
     const db = getDb();
     const embedder = getEmbeddingService();
-    const conceptId = generateUUID([semantic]);
+    const normalized = normalize(semantic);
+    const conceptId = generateUUID([normalized]);
 
     // Generate embedding
-    const embedding = await embedder.generateEmbedding(semantic);
+    const embedding = await embedder.generateEmbedding(normalized);
     
     // Update or Insert with embedding
     await db
       .insert(tagEmbeddings)
       .values({
         id: conceptId,
-        semantic: semantic,
+        semantic: normalized,
         embedding: embedding,
       })
       .onConflictDoUpdate({
@@ -83,7 +81,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
         score: distance,
       })
       .from(userTags)
-      .innerJoin(tagEmbeddings, eq(userTags.embeddingId, tagEmbeddings.id))
+      .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
       .where(
         and(
           eq(userTags.userId, data.userId),

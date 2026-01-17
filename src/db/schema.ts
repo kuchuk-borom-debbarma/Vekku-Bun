@@ -57,9 +57,7 @@ export const userTags = pgTable(
     id: varchar({ length: 255 }).primaryKey(),
     userId: varchar("fk_user_id", { length: 255 }).notNull(),
     name: text().notNull(),
-    embeddingId: varchar("fk_embedding_id", { length: 255 })
-      .notNull()
-      .references(() => tagEmbeddings.id),
+    semantic: text().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
   },
@@ -69,6 +67,7 @@ export const userTags = pgTable(
       table.createdAt.desc(),
       table.id.desc(),
     ),
+    index("tags_semantic_idx").on(table.semantic),
     // Prevent duplicate tags for the same user
     uniqueIndex("unique_user_tag_active")
       .on(table.userId, table.name),

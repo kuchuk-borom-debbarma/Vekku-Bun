@@ -1,10 +1,13 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
+import { describe, expect, test, mock, beforeEach } from "bun:test";
 import { TagServiceImpl } from "./TagServiceImpl";
 
 // --- Mocks ---
 const mockUuid = "mock-uuid-123";
+const mockNormalize = (s: string) => s.toLowerCase().trim();
+
 mock.module("../../lib/uuid", () => ({
   generateUUID: () => mockUuid,
+  normalize: mockNormalize,
 }));
 
 // Mock Database
@@ -18,7 +21,7 @@ const createMockQuery = (data: any) => {
   query.onConflictDoUpdate = mock(() => query);
   query.returning = mock(() => query);
   query.set = mock(() => query);
-  query.leftJoin = mock(() => query); // Added for join
+  // query.leftJoin = mock(() => query); // Removed as we don't use it anymore
   return query;
 };
 
@@ -58,13 +61,13 @@ describe("TagService", () => {
   });
 
   describe("createTag", () => {
-    test("should create and return a tag", async () => {
-      const input = { name: "work", semantic: "office tasks", userId: "u1" };
+    test("should create and return a tag without synchronous learning", async () => {
+      const input = { name: "work", semantic: "Office Tasks", userId: "u1" };
       const dbResponse = {
         id: mockUuid,
         name: "work",
         userId: "u1",
-        embeddingId: "mock-embedding-id",
+        semantic: "office tasks", // Normalized
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -74,7 +77,9 @@ describe("TagService", () => {
 
       const result = await tagService.createTag(input);
 
-      expect(mockSuggestionService.ensureConceptExists).toHaveBeenCalledWith("office tasks");
+      // Verify explicit learning is NOT called
+      expect(mockSuggestionService.ensureConceptExists).not.toHaveBeenCalled();
+      
       expect(mockDb.insert).toHaveBeenCalled();
       expect(result?.id).toBe(mockUuid);
       expect(result?.name).toBe("work");
@@ -98,15 +103,12 @@ describe("TagService", () => {
         id: "t1",
         name: "new-name",
         userId: "u1",
-        embeddingId: "old-emb-id",
+        semantic: "old-semantic",
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      // For semantic fetch fallback
-      const mockConcept = [{ semantic: "old-semantic" }];
 
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
-      mockDb.select.mockImplementationOnce(() => createMockQuery(mockConcept));
 
       const result = await tagService.updateTag({
         id: "t1",
@@ -119,27 +121,26 @@ describe("TagService", () => {
       expect(result?.semantic).toBe("old-semantic");
     });
 
-    test("should update semantic and learn new tag", async () => {
+    test("should update semantic without synchronous learning", async () => {
        const dbResponse = {
         id: "t1",
         name: "work",
         userId: "u1",
-        embeddingId: "new-emb-id", // Updated ID
+        semantic: "new-semantic",
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
-      // No select needed because we passed semantic
 
       const result = await tagService.updateTag({
         id: "t1",
         userId: "u1",
-        semantic: "new-semantic",
+        semantic: "New-Semantic",
       });
 
-      expect(mockSuggestionService.ensureConceptExists).toHaveBeenCalledWith("new-semantic");
-      expect(result?.semantic).toBe("new-semantic");
+      expect(mockSuggestionService.ensureConceptExists).not.toHaveBeenCalled();
+      expect(result?.semantic).toBe("new-semantic"); // Normalized from DB response
     });
   });
 
@@ -162,27 +163,23 @@ describe("TagService", () => {
   describe("getTagsOfUser", () => {
     test("should fetch a page of tags", async () => {
       const mockIds = [{ id: "tag-1" }, { id: "tag-2" }];
-      // Mock Data structure for the Join
+      // Mock Data structure (Flat now)
       const mockFullData = [
         {
-          tag: {
-            id: "tag-1",
-            name: "T1",
-            userId: "u1",
-            createdAt: new Date(),
-            updatedAt: null,
-          },
-          embedding: { semantic: "S1" },
+          id: "tag-1",
+          name: "T1",
+          userId: "u1",
+          semantic: "S1",
+          createdAt: new Date(),
+          updatedAt: null,
         },
         {
-          tag: {
-            id: "tag-2",
-            name: "T2",
-            userId: "u1",
-            createdAt: new Date(),
-            updatedAt: null,
-          },
-          embedding: { semantic: "S2" },
+          id: "tag-2",
+          name: "T2",
+          userId: "u1",
+          semantic: "S2",
+          createdAt: new Date(),
+          updatedAt: null,
         },
       ];
 

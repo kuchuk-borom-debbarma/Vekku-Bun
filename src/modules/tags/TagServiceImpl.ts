@@ -1,10 +1,9 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { generateUUID } from "../../lib/uuid";
+import { generateUUID, normalize } from "../../lib/uuid";
 import type { ChunkPaginationData } from "../../lib/pagination";
 import type { ITagService, UserTag } from "./TagService";
 import { getDb } from "../../db";
-import { getTagSuggestionService } from "../suggestions";
 import { getEventBus, TOPICS } from "../../lib/events";
 
 const SEGMENT_SIZE = 2000;
@@ -19,13 +18,11 @@ export class TagServiceImpl implements ITagService {
     ctx?: { waitUntil: (promise: Promise<any>) => void },
   ): Promise<UserTag | null> {
     const db = getDb();
-    const suggestionService = getTagSuggestionService();
+    
+    // Normalize semantic string
+    const normalizedSemantic = normalize(data.semantic);
 
-    // 1. Learn the tag (Get/Create Concept ID)
-    // We only ensure it exists (fast). Embedding happens in background listener.
-    const embeddingId = await suggestionService.ensureConceptExists(data.semantic);
-
-    // 2. Create User Tag Link
+    // Create User Tag Link directly (No Embedding ID needed here)
     const tagId = generateUUID([data.name, data.userId]);
     
     const result = await db
@@ -34,14 +31,14 @@ export class TagServiceImpl implements ITagService {
         id: tagId,
         userId: data.userId,
         name: data.name,
-        embeddingId: embeddingId,
+        semantic: normalizedSemantic,
       })
       .onConflictDoUpdate({
         target: schema.userTags.id,
         set: {
           updatedAt: new Date(),
           name: data.name,
-          embeddingId: embeddingId,
+          semantic: normalizedSemantic,
         },
       })
       .returning();
@@ -51,13 +48,13 @@ export class TagServiceImpl implements ITagService {
       const userTag = {
         id: tag.id,
         name: tag.name,
-        semantic: data.semantic,
+        semantic: tag.semantic,
         userId: tag.userId,
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
       };
 
-      // Publish Event
+      // Publish Event -> This triggers the learning process in Listeners
       try {
         getEventBus().publish(TOPICS.TAG.CREATED, userTag, tag.userId, ctx);
       } catch (e) {
@@ -80,18 +77,11 @@ export class TagServiceImpl implements ITagService {
   ): Promise<UserTag | null> {
     const db = getDb();
     
-    let newEmbeddingId: string | undefined;
-
-    if (data.semantic) {
-      const suggestionService = getTagSuggestionService();
-      newEmbeddingId = await suggestionService.ensureConceptExists(data.semantic);
-    }
-
-    const toUpdate: { name?: string; embeddingId?: string; updatedAt: Date } = {
+    const toUpdate: { name?: string; semantic?: string; updatedAt: Date } = {
       updatedAt: new Date(),
     };
     if (data.name) toUpdate.name = data.name;
-    if (newEmbeddingId) toUpdate.embeddingId = newEmbeddingId;
+    if (data.semantic) toUpdate.semantic = normalize(data.semantic);
 
     const result = await db
       .update(schema.userTags)
@@ -106,25 +96,16 @@ export class TagServiceImpl implements ITagService {
 
     const tag = result[0];
     if (tag) {
-       let finalSemantic = data.semantic;
-       if (!finalSemantic) {
-          const concept = await db.select({ semantic: schema.tagEmbeddings.semantic })
-            .from(schema.tagEmbeddings)
-            .where(eq(schema.tagEmbeddings.id, tag.embeddingId))
-            .limit(1);
-          finalSemantic = concept[0]?.semantic || "";
-       }
-
       const userTag = {
         id: tag.id,
         name: tag.name,
-        semantic: finalSemantic!,
+        semantic: tag.semantic,
         userId: tag.userId,
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
       };
 
-      // Publish Event
+      // Publish Event -> This triggers the re-learning process if semantic changed
       try {
         getEventBus().publish(TOPICS.TAG.UPDATED, userTag, tag.userId, ctx);
       } catch (e) {
@@ -180,7 +161,7 @@ export class TagServiceImpl implements ITagService {
       );
     }
 
-    // 1. Resolve Cursor (Timestamp lookup if chunkId is provided)
+    // 1. Resolve Cursor
     let whereClause = eq(schema.userTags.userId, userId);
 
     if (chunkId) {
@@ -203,7 +184,7 @@ export class TagServiceImpl implements ITagService {
       }
     }
 
-    // 2. Fetch Chunk IDs (The "Map")
+    // 2. Fetch Chunk IDs
     const chunkIds = await db
       .select({ id: schema.userTags.id })
       .from(schema.userTags)
@@ -211,41 +192,37 @@ export class TagServiceImpl implements ITagService {
       .orderBy(desc(schema.userTags.createdAt), desc(schema.userTags.id))
       .limit(SEGMENT_SIZE + 1);
 
-    // 3. Calculate Metadata
+    // 3. Metadata
     const totalFound = chunkIds.length;
     const hasNextChunk = totalFound > SEGMENT_SIZE;
     const chunkTotalItems = hasNextChunk ? SEGMENT_SIZE : totalFound;
     const nextChunkId = hasNextChunk ? chunkIds[SEGMENT_SIZE]!.id : null;
 
-    // 4. Determine Page IDs (In-Memory Slice)
+    // 4. Page IDs
     const pageIds = chunkIds
       .slice(offset, offset + limit)
       .map((row) => row.id);
 
-    // 5. Fetch Full Data with JOIN
+    // 5. Fetch Full Data (No Join needed anymore)
     let pageData: UserTag[] = [];
     if (pageIds.length > 0) {
       const rows = await db
-        .select({
-            tag: schema.userTags,
-            embedding: schema.tagEmbeddings
-        })
+        .select()
         .from(schema.userTags)
-        .leftJoin(schema.tagEmbeddings, eq(schema.userTags.embeddingId, schema.tagEmbeddings.id))
         .where(inArray(schema.userTags.id, pageIds));
 
-      const idMap = new Map(rows.map((r) => [r.tag.id, r]));
+      const idMap = new Map(rows.map((r) => [r.id, r]));
       
       pageData = pageIds
         .map((id) => idMap.get(id))
         .filter((item) => item !== undefined)
         .map((row) => ({
-          id: row!.tag.id,
-          name: row!.tag.name,
-          semantic: row!.embedding?.semantic || "",
-          userId: row!.tag.userId,
-          createdAt: row!.tag.createdAt,
-          updatedAt: row!.tag.updatedAt,
+          id: row!.id,
+          name: row!.name,
+          semantic: row!.semantic,
+          userId: row!.userId,
+          createdAt: row!.createdAt,
+          updatedAt: row!.updatedAt,
         }));
     }
 
