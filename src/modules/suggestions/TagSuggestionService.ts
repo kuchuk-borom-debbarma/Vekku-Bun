@@ -19,7 +19,6 @@ export interface ITagSuggestionService {
     contentId: string;
     userId: string;
     suggestionsCount: number;
-    threshold: number;
   }): Promise<void>;
 
   getSuggestionsForContent(contentId: string): Promise<ContentSuggestion[]>;

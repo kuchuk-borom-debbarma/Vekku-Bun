@@ -39,7 +39,7 @@ To optimize storage and search, we differentiate between a user's tag and the gl
     *   **Efficiency:** Postgres filters by the specific user's tags *first*, and then calculates distance only for that subset.
 
 3.  **Storage (`content_tag_suggestions` table):**
-    *   The top matches (below a certain distance threshold) are stored in `content_tag_suggestions`.
+    *   The top matches are stored in `content_tag_suggestions`.
     *   This allows the frontend to simply `GET /api/suggestions/content/:id` without re-running the heavy AI inference every time.
 
 ## Database Schema

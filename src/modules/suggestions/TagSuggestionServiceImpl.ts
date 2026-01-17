@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { tagEmbeddings, userTags, contentTagSuggestions } from "../../db/schema";
 import { getEmbeddingService } from "../../lib/embedding";
@@ -61,7 +61,6 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
     contentId: string;
     userId: string;
     suggestionsCount: number;
-    threshold: number;
   }): Promise<void> {
     const db = getDb();
     const embedder = getEmbeddingService();
@@ -83,10 +82,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
       .from(userTags)
       .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
       .where(
-        and(
-          eq(userTags.userId, data.userId),
-          sql`${distance} <= ${data.threshold}` // Filter by distance in DB
-        )
+        eq(userTags.userId, data.userId)
       )
       .orderBy(distance) // Closest distance first
       .limit(data.suggestionsCount);

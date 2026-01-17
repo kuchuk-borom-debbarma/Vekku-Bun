@@ -16,7 +16,6 @@ export const initSuggestionListeners = () => {
     const content = event.payload;
     
     // In a real app, these might come from a config service or env
-    const threshold = 0.4;
     const matchCount = 20;
 
     try {
@@ -25,7 +24,6 @@ export const initSuggestionListeners = () => {
         contentId: content.id,
         userId: content.userId,
         suggestionsCount: matchCount,
-        threshold: threshold,
       });
     } catch (error) {
       console.error(`[SuggestionListener] Failed to generate suggestions for content ${content.id}:`, error);
@@ -36,7 +34,6 @@ export const initSuggestionListeners = () => {
   eventBus.subscribe(TOPICS.CONTENT.UPDATED, async (event: AppEvent<Content>) => {
     const content = event.payload;
     
-    const threshold = 0.4;
     const matchCount = 20;
 
     try {
@@ -45,7 +42,6 @@ export const initSuggestionListeners = () => {
         contentId: content.id,
         userId: content.userId,
         suggestionsCount: matchCount,
-        threshold: threshold,
       });
     } catch (error) {
       console.error(`[SuggestionListener] Failed to regenerate suggestions for content ${content.id}:`, error);
