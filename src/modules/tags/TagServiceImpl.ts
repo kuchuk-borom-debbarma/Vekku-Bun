@@ -33,7 +33,7 @@ export class TagServiceImpl implements ITagService {
         semantic: normalizedSemantic,
       })
       .onConflictDoUpdate({
-        target: schema.userTags.id,
+        target: [schema.userTags.userId, schema.userTags.name],
         set: {
           updatedAt: new Date(),
           name: data.name,
