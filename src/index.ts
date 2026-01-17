@@ -62,13 +62,14 @@ export default {
       setJwtSecret(env.JWT_SECRET);
     }
 
-    // 3. AI Service Configuration Injection
+    // Initialize Embedding Config
     setEmbeddingConfig({
       accountId: env.CLOUDFLARE_WORKER_ACCOUNT_ID,
       apiKey: env.CLOUDFLARE_WORKER_AI_API_KEY,
     });
 
-    const bindings = { ...process.env, ...env } as Bindings;
+    const processEnv = typeof process !== "undefined" ? process.env : {};
+    const bindings = { ...processEnv, ...env } as Bindings;
     const app = createApp(bindings);
     return app.fetch(request, bindings, ctx);
   },
