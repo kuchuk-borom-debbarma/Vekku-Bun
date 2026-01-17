@@ -163,6 +163,25 @@ function updateTokensFromInput() {
     alert('Tokens updated in local storage.');
 }
 
+async function refreshTokenFunc() {
+    const currentRefresh = document.getElementById('refreshTokenInput').value;
+    if (!currentRefresh) {
+        alert("No refresh token available");
+        return;
+    }
+
+    try {
+        const res = await apiCall('/auth/refresh', 'POST', { refreshToken: currentRefresh });
+        if (res.accessToken && res.refreshToken) {
+            handleLoginSuccess(res.accessToken, res.refreshToken, res.user);
+            log('Token Refresh', 'Success', false);
+            alert('Tokens refreshed successfully!');
+        }
+    } catch (e) {
+        log('Token Refresh Error', e, true);
+    }
+}
+
 function showAuthenticatedState() {
     document.getElementById('loginForm').classList.add('hidden');
     document.getElementById('signupForm').classList.add('hidden');

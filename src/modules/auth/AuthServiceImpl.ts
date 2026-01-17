@@ -2,12 +2,39 @@ import { eq } from "drizzle-orm";
 import { type NeonHttpDatabase } from "drizzle-orm/neon-http";
 import * as schema from "../../db/schema";
 import { generateUUID } from "../../lib/uuid";
-import { generateAccessToken, generateRefreshToken } from "../../lib/jwt";
+import { generateAccessToken, generateRefreshToken, verifyJwt } from "../../lib/jwt";
 import type { IHasher } from "../../lib/hashing";
 import type { AuthUser, IAuthService } from "./AuthService";
 
 export class AuthServiceImpl implements IAuthService {
   constructor(private db: NeonHttpDatabase<typeof schema>) {}
+
+  async refreshToken(token: string): Promise<AuthUser> {
+    const payload = await verifyJwt(token);
+    if (!payload || !payload.sub) {
+      throw new Error("Invalid or expired refresh token");
+    }
+
+    const users = await this.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.id, payload.sub as string))
+      .limit(1);
+
+    const u = users[0];
+    if (!u || u.isDeleted) {
+      throw new Error("User not found or unavailable");
+    }
+
+    const accessToken = await generateAccessToken(u.id);
+    const newRefreshToken = await generateRefreshToken(u.id);
+
+    return {
+      user: { id: u.id, name: u.name, role: u.role },
+      accessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
 
   async createUser(data: {
     email: string;

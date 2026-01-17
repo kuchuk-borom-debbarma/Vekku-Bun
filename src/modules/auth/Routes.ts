@@ -77,4 +77,21 @@ authRouter.post("/login", async (c) => {
   }
 });
 
+// 4. Refresh Token
+authRouter.post("/refresh", async (c) => {
+  const { refreshToken } = await c.req.json();
+  const authService = getAuthService();
+
+  if (!refreshToken) {
+    return c.json({ error: "Missing refresh token" }, 400);
+  }
+
+  try {
+    const result = await authService.refreshToken(refreshToken);
+    return c.json(result);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 401);
+  }
+});
+
 export { authRouter };
