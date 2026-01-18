@@ -38,7 +38,7 @@ The `user` table is minimal:
 *   `username`: Email (Unique)
 *   `password`: Hashed Password
 *   `name`: User's Name
-*   `role`: "user" (default)
+*   `role`: "USER" (default)
 
 ## Testing
 You can easily test this flow using the **Web UI Tester**:

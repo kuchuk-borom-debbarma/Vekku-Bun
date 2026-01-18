@@ -26,7 +26,7 @@ export const verifySignupToken = async (token: string) => {
 export const generateAccessToken = async (userId: string) => {
   const payload = {
     sub: userId,
-    role: "user",
+    role: "USER",
     exp: Math.floor(Date.now() / 1000) + 60 * 15, // 15 minutes
   };
   return await sign(payload, SECRET_KEY);

@@ -7,10 +7,13 @@ import {
   text,
   vector,
   uniqueIndex,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // --- User Domain ---
+
+export const userRoles = pgEnum("user_role", ["USER", "ADMIN"]);
 
 export const user = pgTable(
   "users",
@@ -19,7 +22,7 @@ export const user = pgTable(
     username: text().notNull().unique(), // Email
     password: text().notNull(), // Hashed
     name: text().notNull(),
-    role: text().default("user").notNull(),
+    role: userRoles("role").default("USER").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at"),
     isDeleted: boolean("is_deleted").default(false).notNull(),

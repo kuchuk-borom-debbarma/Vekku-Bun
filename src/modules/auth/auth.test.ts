@@ -47,7 +47,7 @@ describe("AuthService", () => {
         username: "test@example.com",
         password: "hash",
         name: "Test User",
-        role: "user",
+        role: "USER",
         isDeleted: false,
       };
       mockDb.select.mockImplementationOnce(() => createMockQuery([mockUser]));

@@ -59,7 +59,7 @@ export class AuthServiceImpl implements IAuthService {
         username: data.email,
         password: data.passwordHash,
         name: data.name,
-        role: data.role || "user",
+        role: (data.role as "USER" | "ADMIN") || "USER",
         isDeleted: false,
         createdAt: new Date(),
       })
