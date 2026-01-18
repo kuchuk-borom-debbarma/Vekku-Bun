@@ -43,6 +43,13 @@
       "when": 1768600513079,
       "tag": "0005_free_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768754048487,
+      "tag": "0006_dapper_namora",
+      "breakpoints": true
     }
   ]
 }

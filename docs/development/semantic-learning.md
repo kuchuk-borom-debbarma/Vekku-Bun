@@ -41,7 +41,7 @@ We need to store the learned context directly on the link between the user and t
 
 | Column | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `context_embedding` | `vector(384)` | `NULL` | The learned centroid of the tag's context for this user. |
+| `context_embedding` | `vector(1024)` | `NULL` | The learned centroid of the tag's context for this user. |
 | `usage_count` | `integer` | `0` | The denominator for the moving average calculation. |
 | `last_learned_at` | `timestamp` | `NULL` | Metadata to track when the last update occurred. |
 

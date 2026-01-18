@@ -49,7 +49,7 @@ To optimize storage and search, we differentiate between a user's tag and the gl
 {
   id: "uuid-v5-semantic",
   semantic: "machine learning", // Normalized
-  embedding: [0.12, -0.5, ...], // 384 dimensions
+  embedding: [0.12, -0.5, ...], // 1024 dimensions
 }
 
 // tags (User Links)

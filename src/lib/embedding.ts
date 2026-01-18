@@ -13,9 +13,9 @@ export const setEmbeddingConfig = (config: {
 
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
-    // Return a zero vector of dimension 384 to match DB schema
+    // Return a zero vector of dimension 1024 to match DB schema (bge-m3)
     // and prevent crashes during local development.
-    return new Array(384).fill(0);
+    return new Array(1024).fill(0);
   },
 };
 
@@ -30,7 +30,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
       );
     }
 
-    const model = "@cf/baai/bge-small-en-v1.5";
+    const model = "@cf/baai/bge-m3";
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
     const response = await fetch(url, {

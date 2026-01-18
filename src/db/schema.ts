@@ -37,7 +37,7 @@ export const tagEmbeddings = pgTable(
   {
     id: varchar({ length: 255 }).primaryKey(), // Deterministic UUID based on semantic
     semantic: text().notNull(),
-    embedding: vector("embedding", { dimensions: 384 }),
+    embedding: vector("embedding", { dimensions: 1024 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at"),
   },
