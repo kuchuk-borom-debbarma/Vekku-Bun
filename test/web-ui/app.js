@@ -283,6 +283,98 @@ async function deleteTag(id) {
 
 // --- Content ---
 
+async function fetchContentTags(contentId) {
+    try {
+        const res = await apiCall(`/content/${contentId}/tags`);
+        return res.data || res;
+    } catch (e) {
+        return [];
+    }
+}
+
+async function addContentTag(contentId) {
+    const select = document.getElementById(`tag-select-${contentId}`);
+    const tagId = select.value;
+    if(!tagId) return;
+
+    try {
+        await apiCall(`/content/${contentId}/tags`, 'POST', { tagIds: [tagId] });
+        toggleTagManager(contentId, true); 
+    } catch (e) {}
+}
+
+async function removeContentTag(contentId, tagId) {
+    if(!confirm("Remove tag?")) return;
+    try {
+        await apiCall(`/content/${contentId}/tags`, 'DELETE', { tagIds: [tagId] });
+        toggleTagManager(contentId, true);
+    } catch (e) {}
+}
+
+async function toggleTagManager(contentId, forceRefresh = false) {
+    const mgr = document.getElementById(`tag-manager-${contentId}`);
+    
+    if (!forceRefresh) {
+        if (mgr.classList.contains('hidden')) {
+            mgr.classList.remove('hidden');
+        } else {
+            mgr.classList.add('hidden');
+            return; 
+        }
+    }
+
+    const chipsContainer = document.getElementById(`tag-chips-${contentId}`);
+    const select = document.getElementById(`tag-select-${contentId}`);
+    
+    chipsContainer.innerHTML = 'Loading...';
+    
+    // Parallel fetch: Assigned Tags & All Tags
+    // We fetch all tags to populate the dropdown
+    const [assignedTags, allTagsRes] = await Promise.all([
+        fetchContentTags(contentId),
+        apiCall('/tag')
+    ]);
+
+    const allTags = allTagsRes.data || allTagsRes;
+
+    // Render Assigned Tags
+    chipsContainer.innerHTML = '';
+    if (!assignedTags || assignedTags.length === 0) {
+        chipsContainer.innerHTML = '<span style="font-size:0.8em; color:#666;">No tags assigned</span>';
+    } else {
+        assignedTags.forEach(tag => {
+            const chip = document.createElement('div');
+            chip.className = 'tag-chip';
+            chip.innerHTML = `
+                ${tag.name}
+                <button onclick="removeContentTag('${contentId}', '${tag.id}')">&times;</button>
+            `;
+            chipsContainer.appendChild(chip);
+        });
+    }
+
+    // Render Dropdown
+    select.innerHTML = '';
+    const assignedIds = new Set((assignedTags || []).map(t => t.id));
+    
+    let hasOptions = false;
+    allTags.forEach(tag => {
+        if (!assignedIds.has(tag.id)) {
+            const opt = document.createElement('option');
+            opt.value = tag.id;
+            opt.textContent = tag.name;
+            select.appendChild(opt);
+            hasOptions = true;
+        }
+    });
+    
+    if (!hasOptions) {
+        const opt = document.createElement('option');
+        opt.textContent = "No other tags available";
+        select.appendChild(opt);
+    }
+}
+
 async function fetchContent() {
     const currentToken = document.getElementById('accessTokenInput').value || accessToken;
     if (!currentToken) return;
@@ -305,13 +397,24 @@ function renderContent(contents) {
     contents.forEach(item => {
         const li = document.createElement('li');
         li.innerHTML = `
-            <div>
+            <div style="flex: 1; padding-right: 10px;">
                 <strong>${item.title}</strong> <small>(${item.contentType})</small>
-                <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;">${item.body.substring(0, 50)}...</p>
+                <p style="margin: 5px 0 10px 0; color: #666; font-size: 0.9em;">${item.body.substring(0, 100)}...</p>
+                
+                <!-- Tag Manager -->
+                <div id="tag-manager-${item.id}" class="tag-manager hidden">
+                    <div style="margin-bottom:5px; font-weight:bold; font-size:0.9em;">Assigned Tags</div>
+                    <div id="tag-chips-${item.id}" class="tag-chips">Loading...</div>
+                    <div class="add-tag-row">
+                         <select id="tag-select-${item.id}"><option>Loading tags...</option></select>
+                         <button style="width:auto; padding: 2px 8px; background-color: #0ea5e9;" onclick="addContentTag('${item.id}')">Add Tag</button>
+                    </div>
+                </div>
             </div>
-            <div>
-                <button class="secondary" style="width:auto; padding: 2px 8px; font-size: 0.8em; margin-right: 5px;" onclick="fetchSuggestions('${item.id}')">Suggestions</button>
-                <button class="danger" style="width:auto; padding: 2px 8px; font-size: 0.8em;" onclick="deleteContent('${item.id}')">Delete</button>
+            <div style="display:flex; flex-direction:column; gap:5px; min-width: 120px;">
+                <button class="secondary" style="width:100%; padding: 4px; font-size: 0.8em;" onclick="fetchSuggestions('${item.id}')">Suggestions</button>
+                <button class="secondary" style="width:100%; padding: 4px; font-size: 0.8em; background-color: #6366f1; color: white; border:none;" onclick="toggleTagManager('${item.id}')">Manage Tags</button>
+                <button class="danger" style="width:100%; padding: 4px; font-size: 0.8em;" onclick="deleteContent('${item.id}')">Delete</button>
             </div>
         `;
         list.appendChild(li);
@@ -320,7 +423,7 @@ function renderContent(contents) {
 
 async function createContent() {
     const title = document.getElementById('contentTitle').value;
-    const content = document.getElementById('contentBody').value; // Mapped to 'content' in payload
+    const content = document.getElementById('contentBody').value; 
     const contentType = document.getElementById('contentType').value;
 
     if (!title || !content) return;
