@@ -39,6 +39,7 @@ export interface IContentTagService {
    * Get tags of content with pagination
    */
   getTagsOfContent(data: {
+    contentId: string;
     userId: string;
     chunkId?: string;
     limit?: number;

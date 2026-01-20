@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getContentService } from "./index";
+import { getContentService, getContentTagService } from "./index";
 import { verifyJwt } from "../../lib/jwt";
 import { ContentType } from "./ContentService";
 
@@ -144,6 +144,84 @@ contentRouter.get("/", async (c) => {
       offset,
       chunkId,
     );
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
+// --- Content Tag Routes ---
+
+// Add Tags to Content
+contentRouter.post("/:id/tags", async (c) => {
+  const contentId = c.req.param("id");
+  const { tagIds } = await c.req.json();
+  const user = c.get("user");
+  const contentTagService = getContentTagService();
+
+  if (!tagIds || !Array.isArray(tagIds)) {
+    return c.json({ error: "tagIds must be an array" }, 400);
+  }
+
+  const success = await contentTagService.addTagsToContent({
+    contentId,
+    tagIds,
+    userId: user.id,
+  });
+
+  if (!success) {
+    return c.json({ error: "Failed to add tags" }, 500);
+  }
+
+  return c.json({ success: true });
+});
+
+// Remove Tags from Content
+contentRouter.delete("/:id/tags", async (c) => {
+  const contentId = c.req.param("id");
+  const { tagIds } = await c.req.json();
+  const user = c.get("user");
+  const contentTagService = getContentTagService();
+
+  if (!tagIds || !Array.isArray(tagIds)) {
+    return c.json({ error: "tagIds must be an array" }, 400);
+  }
+
+  const success = await contentTagService.removeTagsFromContent({
+    contentId,
+    tagIds,
+    userId: user.id,
+  });
+
+  if (!success) {
+    return c.json({ error: "Failed to remove tags" }, 500);
+  }
+
+  return c.json({ success: true });
+});
+
+// Get Tags of Content
+contentRouter.get("/:id/tags", async (c) => {
+  const contentId = c.req.param("id");
+  const user = c.get("user");
+  const chunkId = c.req.query("chunkId");
+  const limit = c.req.query("limit")
+    ? parseInt(c.req.query("limit")!)
+    : undefined;
+  const offset = c.req.query("offset")
+    ? parseInt(c.req.query("offset")!)
+    : undefined;
+
+  const contentTagService = getContentTagService();
+
+  try {
+    const result = await contentTagService.getTagsOfContent({
+      contentId,
+      userId: user.id,
+      chunkId,
+      limit,
+      offset,
+    });
     return c.json(result);
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400);
