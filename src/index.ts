@@ -40,15 +40,15 @@ export default {
   /**
    * THE ADAPTER LAYER
    * -----------------
-   * This 'fetch' handler acts as the bridge between the specific runtime platform 
+   * This 'fetch' handler acts as the bridge between the specific runtime platform
    * (e.g., Cloudflare Workers, Bun, Node) and the application's core logic.
-   * 
+   *
    * Its primary responsibility is Dependency Injection & Configuration:
    * 1. Extract secrets/bindings from the platform-specific 'env' object.
    * 2. Inject them into the application's global state or service configurations.
-   * 
+   *
    * This allows the Service Layer (TagServiceImpl, etc.) to remain "Platform Agnostic".
-   * Services don't need to know they are running on Cloudflare; they just use the 
+   * Services don't need to know they are running on Cloudflare; they just use the
    * injected configuration.
    */
   fetch(request: Request, env: Bindings, ctx: any) {
@@ -74,3 +74,5 @@ export default {
     return app.fetch(request, bindings, ctx);
   },
 };
+
+//TODO make this lighter

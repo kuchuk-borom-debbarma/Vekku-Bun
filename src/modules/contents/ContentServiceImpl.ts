@@ -8,7 +8,6 @@ import {
   ContentType,
   type IContentService,
 } from "./ContentService";
-import { getTagSuggestionService } from "../suggestions";
 import { getEventBus, TOPICS } from "../../lib/events";
 
 const SEGMENT_SIZE = 20;
@@ -50,8 +49,8 @@ export class ContentServiceImpl implements IContentService {
       // We don't await here to return to the user faster.
       // If ctx is provided, eventBus.publish will use ctx.waitUntil internally.
       eventBus.publish(
-        TOPICS.CONTENT.CREATED, 
-        { 
+        TOPICS.CONTENT.CREATED,
+        {
           id: content.id,
           title: content.title,
           body: content.body,
@@ -61,7 +60,7 @@ export class ContentServiceImpl implements IContentService {
           updatedAt: content.updatedAt,
         },
         content.userId,
-        ctx
+        ctx,
       );
     } catch (e) {
       console.error("Failed to publish content.created event:", e);
@@ -115,25 +114,25 @@ export class ContentServiceImpl implements IContentService {
 
     // Regenerate suggestions via Event
     if (data.content) {
-         try {
-            const eventBus = getEventBus();
-            eventBus.publish(
-                TOPICS.CONTENT.UPDATED, 
-                { 
-                    id: content.id,
-                    title: content.title,
-                    body: content.body,
-                    userId: content.userId,
-                    contentType: content.contentType as ContentType,
-                    createdAt: content.createdAt,
-                    updatedAt: content.updatedAt,
-                },
-                content.userId,
-                ctx
-            );
-         } catch (e) {
-             console.error("Failed to publish content.updated event:", e);
-         }
+      try {
+        const eventBus = getEventBus();
+        eventBus.publish(
+          TOPICS.CONTENT.UPDATED,
+          {
+            id: content.id,
+            title: content.title,
+            body: content.body,
+            userId: content.userId,
+            contentType: content.contentType as ContentType,
+            createdAt: content.createdAt,
+            updatedAt: content.updatedAt,
+          },
+          content.userId,
+          ctx,
+        );
+      } catch (e) {
+        console.error("Failed to publish content.updated event:", e);
+      }
     }
 
     return {
@@ -151,10 +150,7 @@ export class ContentServiceImpl implements IContentService {
     const result = await this.db
       .delete(schema.contents)
       .where(
-        and(
-          eq(schema.contents.id, id),
-          eq(schema.contents.userId, userId),
-        ),
+        and(eq(schema.contents.id, id), eq(schema.contents.userId, userId)),
       )
       .returning();
 
@@ -175,9 +171,7 @@ export class ContentServiceImpl implements IContentService {
     const result = await this.db
       .select()
       .from(schema.contents)
-      .where(
-        eq(schema.contents.id, id),
-      )
+      .where(eq(schema.contents.id, id))
       .limit(1);
 
     const content = result[0];

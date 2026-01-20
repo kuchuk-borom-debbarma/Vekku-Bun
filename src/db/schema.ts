@@ -72,8 +72,7 @@ export const userTags = pgTable(
     ),
     index("tags_semantic_idx").on(table.semantic),
     // Prevent duplicate tags for the same user
-    uniqueIndex("unique_user_tag_active")
-      .on(table.userId, table.name),
+    uniqueIndex("unique_user_tag_active").on(table.userId, table.name),
   ],
 );
 
@@ -95,6 +94,24 @@ export const contents = pgTable(
       table.userId,
       table.createdAt.desc(),
       table.id.desc(),
+    ),
+  ],
+);
+
+export const contentTags = pgTable(
+  "content_tags",
+  {
+    id: varchar({ length: 255 }).primaryKey(),
+    userId: varchar("fk_user_id", { length: 255 }).notNull(),
+    contentId: varchar("fk_content_id", { length: 255 }).notNull(),
+    tagId: varchar("fk_tag_id", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("content_tags_idx_user_content_tag").on(
+      table.userId,
+      table.contentId,
+      table.tagId,
     ),
   ],
 );
