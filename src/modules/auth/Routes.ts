@@ -7,6 +7,7 @@ import { getNotificationService } from "../../lib/notification";
 type Bindings = {
   DATABASE_URL: string;
   WORKER?: string;
+  FRONTEND_URL?: string;
 };
 
 const authRouter = new Hono<{ Bindings: Bindings }>();
@@ -30,10 +31,9 @@ authRouter.post("/signup/request", async (c) => {
   // Create stateless token
   const token = await generateSignupToken({ email, passwordHash, name });
 
-  // Detect base URL dynamically from request
-  const url = new URL(c.req.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  const verifyUrl = `${baseUrl}/api/auth/signup/verify?token=${token}`;
+  // Use FRONTEND_URL from env or default to localhost
+  const frontendUrl = c.env.FRONTEND_URL || "http://localhost:5173";
+  const verifyUrl = `${frontendUrl}/verify?token=${token}`;
   
   console.log(`\n>>> Verify Signup: ${verifyUrl} <<<\n`);
 
