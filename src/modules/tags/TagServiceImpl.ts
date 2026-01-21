@@ -19,8 +19,9 @@ export class TagServiceImpl implements ITagService {
   ): Promise<UserTag | null> {
     const db = getDb();
 
-    // Normalize semantic string
-    const normalizedSemantic = normalize(data.semantic);
+    // Fallback to name if semantic is empty
+    const semanticInput = data.semantic && data.semantic.trim().length > 0 ? data.semantic : data.name;
+    const normalizedSemantic = normalize(semanticInput);
 
     const tagId = generateUUID();
 
@@ -89,11 +90,37 @@ export class TagServiceImpl implements ITagService {
   ): Promise<UserTag | null> {
     const db = getDb();
 
+    // 1. Fetch Existing Tag first to ensure we have context
+    const existing = await db
+      .select({ name: schema.userTags.name })
+      .from(schema.userTags)
+      .where(
+        and(
+          eq(schema.userTags.id, data.id),
+          eq(schema.userTags.userId, data.userId),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length === 0) return null;
+    const currentTag = existing[0];
+
     const toUpdate: { name?: string; semantic?: string; updatedAt: Date } = {
       updatedAt: new Date(),
     };
+
     if (data.name) toUpdate.name = data.name;
-    if (data.semantic) toUpdate.semantic = normalize(data.semantic);
+
+    if (data.semantic !== undefined) {
+      const trimmed = data.semantic.trim();
+      if (trimmed.length === 0) {
+        // Fallback: Use new name if provided, otherwise existing name
+        const fallbackName = data.name || currentTag.name;
+        toUpdate.semantic = normalize(fallbackName);
+      } else {
+        toUpdate.semantic = normalize(data.semantic);
+      }
+    }
 
     const result = await db
       .update(schema.userTags)
