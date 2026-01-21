@@ -2,11 +2,12 @@ export interface IEmbeddingService {
   generateEmbedding(text: string): Promise<number[]>;
 }
 
-let embeddingConfig: { accountId?: string; apiKey?: string } = {};
+let embeddingConfig: { accountId?: string; apiKey?: string; model?: string } = {};
 
 export const setEmbeddingConfig = (config: {
   accountId?: string;
   apiKey?: string;
+  model?: string;
 }) => {
   embeddingConfig = config;
 };
@@ -30,6 +31,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
     const accountId = embeddingConfig.accountId;
     const apiKey = embeddingConfig.apiKey;
+    const model = embeddingConfig.model || "@cf/baai/bge-small-en-v1.5";
 
     if (!accountId || !apiKey) {
       throw new Error(
@@ -37,7 +39,6 @@ const cloudflareEmbeddingService: IEmbeddingService = {
       );
     }
 
-    const model = "@cf/baai/bge-m3";
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
     const response = await fetch(url, {

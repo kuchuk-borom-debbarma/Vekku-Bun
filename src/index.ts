@@ -19,6 +19,7 @@ type Bindings = {
   JWT_SECRET?: string;
   CLOUDFLARE_WORKER_ACCOUNT_ID?: string;
   CLOUDFLARE_WORKER_AI_API_KEY?: string;
+  CLOUDFLARE_AI_MODEL?: string;
   NOTIFICATION_API_CLIENT_ID?: string;
   NOTIFICATION_API_CLIENT_SECRET?: string;
   WORKER?: string;
@@ -47,11 +48,11 @@ export default {
    * -----------------
    * This 'fetch' handler acts as the bridge between the specific runtime platform
    * (e.g., Cloudflare Workers, Bun, Node) and the application's core logic.
-   *
+   * 
    * Its primary responsibility is Dependency Injection & Configuration:
    * 1. Extract secrets/bindings from the platform-specific 'env' object.
    * 2. Inject them into the application's global state or service configurations.
-   *
+   * 
    * This allows the Service Layer (TagServiceImpl, etc.) to remain "Platform Agnostic".
    * Services don't need to know they are running on Cloudflare; they just use the
    * injected configuration.
@@ -71,8 +72,8 @@ export default {
     setEmbeddingConfig({
       accountId: env.CLOUDFLARE_WORKER_ACCOUNT_ID,
       apiKey: env.CLOUDFLARE_WORKER_AI_API_KEY,
+      model: env.CLOUDFLARE_AI_MODEL,
     });
-
     // Initialize Notification Config
     setNotificationConfig({
       clientId: env.NOTIFICATION_API_CLIENT_ID,
