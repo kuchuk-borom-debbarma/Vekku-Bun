@@ -29,6 +29,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
   }
 
   async learnTag(semantic: string): Promise<string> {
+    console.log(`[SuggestionService] Learning Semantic Concept: "${semantic}"`);
     const db = getDb();
     const embedder = getEmbeddingService();
     const normalized = normalize(semantic);
@@ -36,6 +37,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
 
     // Generate embedding
     const embedding = await embedder.generateEmbedding(normalized);
+    console.log(`[SuggestionService] Generated Embedding for "${normalized}" (Vector Size: ${embedding.length})`);
     
     // Update or Insert with embedding
     await db
@@ -52,7 +54,8 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
           updatedAt: new Date(),
         },
       });
-
+    
+    console.log(`[SuggestionService] Concept "${normalized}" learned/updated in DB.`);
     return conceptId;
   }
 
@@ -62,11 +65,13 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
     userId: string;
     suggestionsCount: number;
   }): Promise<void> {
+    console.log(`[SuggestionService] Generating suggestions for content: ${data.contentId}`);
     const db = getDb();
     const embedder = getEmbeddingService();
 
     // 1. Generate Embedding for the content
     const contentEmbedding = await embedder.generateEmbedding(data.content);
+    console.log(`[SuggestionService] Content embedding generated.`);
 
     // 2. Perform Similarity Search
     // Note: The <=> operator returns 'cosine distance'. Lower distance = Higher similarity.
@@ -87,6 +92,8 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
       .orderBy(distance) // Closest distance first
       .limit(data.suggestionsCount);
     
+    console.log(`[SuggestionService] Found ${suggestions.length} suggestions.`);
+
     // 3. Store Suggestions
     // Transactional safety would be good here, but for now we'll do delete-then-insert
     await db.delete(contentTagSuggestions)
@@ -103,6 +110,7 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
             }))
         );
     }
+    console.log(`[SuggestionService] Suggestions saved to DB.`);
   }
 
   async getSuggestionsForContent(

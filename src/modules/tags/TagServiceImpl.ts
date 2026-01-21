@@ -44,6 +44,7 @@ export class TagServiceImpl implements ITagService {
 
     const tag = result[0];
     if (tag) {
+      console.log(`[TagService] Tag Created: ${tag.name} (${tag.id})`);
       const userTag = {
         id: tag.id,
         name: tag.name,
@@ -66,6 +67,7 @@ export class TagServiceImpl implements ITagService {
        * The 'ctx.waitUntil' ensures the Cloudflare Worker stays alive until the event is processed.
        */
       try {
+        console.log(`[TagService] Publishing TAG.CREATED event for: ${tag.name}`);
         getEventBus().publish(TOPICS.TAG.CREATED, userTag, tag.userId, ctx);
       } catch (e) {
         console.error("Failed to publish tag.created event:", e);
@@ -106,6 +108,7 @@ export class TagServiceImpl implements ITagService {
 
     const tag = result[0];
     if (tag) {
+      console.log(`[TagService] Tag Updated: ${tag.name} (${tag.id})`);
       const userTag = {
         id: tag.id,
         name: tag.name,
@@ -117,6 +120,7 @@ export class TagServiceImpl implements ITagService {
 
       // Publish Event
       try {
+        console.log(`[TagService] Publishing TAG.UPDATED event for: ${tag.name}`);
         getEventBus().publish(TOPICS.TAG.UPDATED, userTag, tag.userId, ctx);
       } catch (e) {
         console.error("Failed to publish tag.updated event:", e);

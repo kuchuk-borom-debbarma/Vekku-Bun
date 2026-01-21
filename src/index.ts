@@ -68,6 +68,18 @@ export default {
       apiKey: env.CLOUDFLARE_WORKER_AI_API_KEY,
     });
 
+    // Polyfill ExecutionContext for Bun/Local environments
+    if (!ctx) {
+      ctx = {
+        waitUntil: (promise: Promise<any>) => {
+          promise.catch((err) =>
+            console.error("[Background Task Error]", err),
+          );
+        },
+        passThroughOnException: () => {},
+      };
+    }
+
     const processEnv = typeof process !== "undefined" ? process.env : {};
     const bindings = { ...processEnv, ...env } as Bindings;
     const app = createApp(bindings);

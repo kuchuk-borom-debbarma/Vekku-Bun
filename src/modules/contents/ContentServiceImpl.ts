@@ -43,9 +43,12 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
+    console.log(`[ContentService] Content Created: ${content.title} (${content.id})`);
+
     // Trigger Event-Driven Suggestions
     try {
       const eventBus = getEventBus();
+      console.log(`[ContentService] Publishing CONTENT.CREATED event for: ${content.id}`);
       // We don't await here to return to the user faster.
       // If ctx is provided, eventBus.publish will use ctx.waitUntil internally.
       eventBus.publish(
@@ -112,10 +115,13 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
+    console.log(`[ContentService] Content Updated: ${content.title} (${content.id})`);
+
     // Regenerate suggestions via Event
     if (data.content) {
       try {
         const eventBus = getEventBus();
+        console.log(`[ContentService] Publishing CONTENT.UPDATED event for: ${content.id}`);
         eventBus.publish(
           TOPICS.CONTENT.UPDATED,
           {

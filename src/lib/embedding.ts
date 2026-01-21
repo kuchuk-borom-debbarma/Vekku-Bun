@@ -13,6 +13,10 @@ export const setEmbeddingConfig = (config: {
 
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
+    console.warn(
+      "[Embedding] WARNING: Using Local Dummy Embedding Service (Zero Vectors). " +
+      "Set CLOUDFLARE_WORKER_ACCOUNT_ID and CLOUDFLARE_WORKER_AI_API_KEY to use real embeddings."
+    );
     // Return a zero vector of dimension 1024 to match DB schema (bge-m3)
     // and prevent crashes during local development.
     return new Array(1024).fill(0);

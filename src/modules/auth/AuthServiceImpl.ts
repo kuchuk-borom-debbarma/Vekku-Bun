@@ -42,6 +42,7 @@ export class AuthServiceImpl implements IAuthService {
     name: string;
     role?: string;
   }): Promise<{ id: string } | undefined> {
+    console.log(`[AuthService] Attempting to create user: ${data.email}`);
     const existing = await this.db
       .select({ id: schema.user.id })
       .from(schema.user)
@@ -49,6 +50,7 @@ export class AuthServiceImpl implements IAuthService {
       .limit(1);
 
     if (existing.length > 0) {
+      console.warn(`[AuthService] User creation failed - Email already exists: ${data.email}`);
       throw new Error("User already exists");
     }
 
@@ -65,6 +67,7 @@ export class AuthServiceImpl implements IAuthService {
       })
       .returning();
 
+    console.log(`[AuthService] User created successfully: ${result[0]?.id}`);
     return result[0];
   }
 
@@ -73,6 +76,7 @@ export class AuthServiceImpl implements IAuthService {
     email: string,
     password: string,
   ): Promise<AuthUser> {
+    console.log(`[AuthService] Login attempt for: ${email}`);
     const users = await this.db
       .select()
       .from(schema.user)
@@ -81,14 +85,17 @@ export class AuthServiceImpl implements IAuthService {
 
     const u = users[0];
     if (!u || u.isDeleted) {
+      console.warn(`[AuthService] Login failed - User not found or deleted: ${email}`);
       throw new Error("Invalid credentials");
     }
 
     const valid = await hasher.verify(password, u.password);
     if (!valid) {
+      console.warn(`[AuthService] Login failed - Invalid password: ${email}`);
       throw new Error("Invalid credentials");
     }
 
+    console.log(`[AuthService] Login successful: ${u.id} (${u.name})`);
     const accessToken = await generateAccessToken(u.id);
     const refreshToken = await generateRefreshToken(u.id);
 

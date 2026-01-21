@@ -8,6 +8,22 @@ const getApiUrl = () => document.getElementById('apiUrl').value.replace(/\/$/, '
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
+    // URL Preset Logic
+    const urlPreset = document.getElementById('urlPreset');
+    const apiUrlInput = document.getElementById('apiUrl');
+
+    if (urlPreset && apiUrlInput) {
+        urlPreset.addEventListener('change', (e) => {
+            if (e.target.value !== 'custom') {
+                apiUrlInput.value = e.target.value;
+            }
+        });
+
+        apiUrlInput.addEventListener('input', () => {
+            urlPreset.value = 'custom';
+        });
+    }
+
     checkHealth();
     
     // Auto-fill inputs if tokens exist in local storage

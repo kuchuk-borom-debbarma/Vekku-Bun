@@ -209,6 +209,11 @@
         <div class="card">
           <h3>Configuration</h3>
           <label>API URL</label>
+          <select id="urlPreset" style="margin-bottom: 5px">
+            <option value="custom">Custom</option>
+            <option value="http://localhost:3000/api">Localhost (Bun)</option>
+            <option value="https://vekku-bun.kuchukboromd.workers.dev/api" selected>Production</option>
+          </select>
           <input
             type="text"
             id="apiUrl"
