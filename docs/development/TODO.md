@@ -4,11 +4,13 @@
     - [x] Implement hard delete logic for Tags, Contents, Suggestions, and Embeddings.
 - [ ] **Refactor: Transactions**
     - [ ] Wrap multi-step operations (e.g., Tag Creation, Content Update) in DB transactions for atomicity.
-
-- Introduce Async operation for stuff like tag suggestions, etc
-- [ ] **Adaptive Semantic Learning**
+- [ ] **Async Operations**
+    - [ ] Introduce Async operation for background tasks (e.g., tag suggestions).
 - [ ] **Adaptive Semantic Learning**
     - [ ] Update `user_tags` schema (add `context_embedding`, `usage_count`, `last_learned_at`)
     - [ ] Implement `reinforceTag` in `TagService` (Centroid-based Moving Average)
     - [ ] Update `TagSuggestionService` to use Hybrid Search (Global vs. User Context)
     - [ ] Integrate "Passive Gap Filling" trigger in Content Tagging flow
+- [ ] **Rate Limiting & Security**
+    - [ ] Implement IP-based rate limiting for Sign Up.
+    - [ ] Implement user-based rate limiting/cooldown for AI operations (e.g., regenerate suggestions).
