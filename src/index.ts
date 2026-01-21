@@ -96,8 +96,12 @@ export default {
     console.log("[App Init] Environment Check:", {
       DATABASE_URL_SET: !!bindings.DATABASE_URL,
       JWT_SECRET_SET: !!bindings.JWT_SECRET,
-      WORKER_FLAG: bindings.WORKER
+      WORKER_FLAG: bindings.WORKER,
+      CF_ACCOUNT_ID: bindings.CLOUDFLARE_WORKER_ACCOUNT_ID ? "SET" : "MISSING",
+      CF_API_KEY: bindings.CLOUDFLARE_WORKER_AI_API_KEY ? "SET" : "MISSING",
     });
+
+    // 1. Database Injection
 
     const app = createApp(bindings);
     return app.fetch(request, bindings, ctx);

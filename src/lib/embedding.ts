@@ -15,8 +15,7 @@ export const setEmbeddingConfig = (config: {
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
     console.warn(
-      "[Embedding] WARNING: Using Local Dummy Embedding Service (Fixed Non-Zero Vectors). " +
-        "Set CLOUDFLARE_WORKER_ACCOUNT_ID and CLOUDFLARE_WORKER_AI_API_KEY to use real embeddings.",
+      `[Embedding] WARNING: Using Local Dummy Embedding Service. Config Missing: AccountID=${!!embeddingConfig.accountId}, APIKey=${!!embeddingConfig.apiKey}`
     );
     // Return a valid non-zero vector of dimension 1024 to match DB schema (bge-m3).
     // Zero vectors cause "division by zero" errors in pgvector cosine distance calculations.
@@ -40,6 +39,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
     }
 
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+    console.log(`[Embedding] Calling Cloudflare AI: ${url}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -55,6 +55,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[Embedding] Cloudflare AI API Error: ${response.status} ${response.statusText}`, errorText);
       throw new Error(
         `Cloudflare AI API failed: ${response.status} ${response.statusText} - ${errorText}`,
       );

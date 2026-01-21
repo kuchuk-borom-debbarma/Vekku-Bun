@@ -57,6 +57,13 @@
       "when": 1768990486730,
       "tag": "0007_brainy_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769020085815,
+      "tag": "0008_unknown_black_panther",
+      "breakpoints": true
     }
   ]
 }
