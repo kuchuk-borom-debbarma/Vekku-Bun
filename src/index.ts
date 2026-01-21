@@ -72,9 +72,7 @@ export default {
     if (!ctx) {
       ctx = {
         waitUntil: (promise: Promise<any>) => {
-          promise.catch((err) =>
-            console.error("[Background Task Error]", err),
-          );
+          promise.catch((err) => console.error("[Background Task Error]", err));
         },
         passThroughOnException: () => {},
       };
@@ -88,3 +86,4 @@ export default {
 };
 
 //TODO make this lighter
+//TODO bug fix users can create same tags twice and this needs to be fixed

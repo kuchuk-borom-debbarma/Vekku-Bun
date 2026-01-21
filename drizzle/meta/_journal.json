@@ -50,6 +50,13 @@
       "when": 1768754048487,
       "tag": "0006_dapper_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1768990486730,
+      "tag": "0007_brainy_mindworm",
+      "breakpoints": true
     }
   ]
 }
