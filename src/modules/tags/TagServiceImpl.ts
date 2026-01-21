@@ -254,4 +254,23 @@ export class TagServiceImpl implements ITagService {
       },
     };
   }
+
+  async getTagsByIds(tagIds: string[], userId: string): Promise<UserTag[]> {
+    if (tagIds.length === 0) return [];
+    const db = getDb();
+    
+    const rows = await db
+      .select()
+      .from(schema.userTags)
+      .where(and(inArray(schema.userTags.id, tagIds), eq(schema.userTags.userId, userId)));
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      semantic: row.semantic,
+      userId: row.userId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+  }
 }

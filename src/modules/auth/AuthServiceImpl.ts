@@ -26,7 +26,7 @@ export class AuthServiceImpl implements IAuthService {
       throw new Error("User not found or unavailable");
     }
 
-    const accessToken = await generateAccessToken(u.id);
+    const accessToken = await generateAccessToken(u.id, u.role);
     const newRefreshToken = await generateRefreshToken(u.id);
 
     return {
@@ -96,7 +96,7 @@ export class AuthServiceImpl implements IAuthService {
     }
 
     console.log(`[AuthService] Login successful: ${u.id} (${u.name})`);
-    const accessToken = await generateAccessToken(u.id);
+    const accessToken = await generateAccessToken(u.id, u.role);
     const refreshToken = await generateRefreshToken(u.id);
 
     return {

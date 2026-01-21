@@ -266,7 +266,10 @@ function renderTags(tags) {
         const li = document.createElement('li');
         li.innerHTML = `
             <span><strong>${tag.name}</strong> <small>(${tag.id})</small></span>
-            <button class="danger" style="width:auto; padding: 2px 8px; font-size: 0.8em;" onclick="deleteTag('${tag.id}')">Delete</button>
+            <div style="display: flex; gap: 5px;">
+                <button class="secondary" style="width:auto; padding: 2px 8px; font-size: 0.8em; background-color: #8b5cf6;" onclick="relearnTag('${tag.id}')">Relearn</button>
+                <button class="danger" style="width:auto; padding: 2px 8px; font-size: 0.8em;" onclick="deleteTag('${tag.id}')">Delete</button>
+            </div>
         `;
         list.appendChild(li);
     });
@@ -294,6 +297,14 @@ async function deleteTag(id) {
     try {
         await apiCall(`/tag/${id}`, 'DELETE');
         fetchTags();
+    } catch (e) {}
+}
+
+async function relearnTag(id) {
+    if(!confirm('Relearn embedding for this tag?')) return;
+    try {
+        await apiCall(`/suggestions/tags/relearn`, 'POST', { tagIds: [id] });
+        alert('Tag relearn triggered.');
     } catch (e) {}
 }
 
@@ -428,7 +439,8 @@ function renderContent(contents) {
                 </div>
             </div>
             <div style="display:flex; flex-direction:column; gap:5px; min-width: 120px;">
-                <button class="secondary" style="width:100%; padding: 4px; font-size: 0.8em;" onclick="fetchSuggestions('${item.id}')">Suggestions</button>
+                <button class="secondary" style="width:100%; padding: 4px; font-size: 0.8em;" onclick="fetchSuggestions('${item.id}')">View Suggestions</button>
+                <button class="secondary" style="width:100%; padding: 4px; font-size: 0.8em; background-color: #10b981; color: white; border:none;" onclick="regenerateSuggestions('${item.id}')">Regenerate</button>
                 <button class="secondary" style="width:100%; padding: 4px; font-size: 0.8em; background-color: #6366f1; color: white; border:none;" onclick="toggleTagManager('${item.id}')">Manage Tags</button>
                 <button class="danger" style="width:100%; padding: 4px; font-size: 0.8em;" onclick="deleteContent('${item.id}')">Delete</button>
             </div>
@@ -465,6 +477,15 @@ async function fetchSuggestions(contentId) {
     try {
         const res = await apiCall(`/suggestions/content/${contentId}`);
         renderSuggestions(res);
+    } catch (e) {}
+}
+
+async function regenerateSuggestions(contentId) {
+    if(!confirm('Regenerate suggestions for this content?')) return;
+    try {
+        const res = await apiCall(`/suggestions/content/${contentId}/regenerate`, 'POST');
+        alert('Suggestions regenerated!');
+        renderSuggestions(res.data);
     } catch (e) {}
 }
 

@@ -4,6 +4,7 @@ import { tagRouter } from "./modules/tags/Routes";
 import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
+import { adminRouter } from "./modules/admin/Routes";
 import { initSuggestionListeners } from "./modules/suggestions";
 import { getDb } from "./db";
 import { setJwtSecret } from "./lib/jwt";
@@ -32,6 +33,7 @@ const createApp = (env: Bindings) => {
   app.route("/api/tag", tagRouter);
   app.route("/api/content", contentRouter);
   app.route("/api/suggestions", suggestionRouter);
+  app.route("/api/admin", adminRouter);
 
   return app;
 };

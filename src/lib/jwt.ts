@@ -23,10 +23,10 @@ export const verifySignupToken = async (token: string) => {
   }
 };
 
-export const generateAccessToken = async (userId: string) => {
+export const generateAccessToken = async (userId: string, role: string = "USER") => {
   const payload = {
     sub: userId,
-    role: "USER",
+    role: role,
     exp: Math.floor(Date.now() / 1000) + 60 * 15, // 15 minutes
   };
   return await sign(payload, SECRET_KEY);
