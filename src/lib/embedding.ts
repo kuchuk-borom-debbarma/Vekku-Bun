@@ -14,12 +14,15 @@ export const setEmbeddingConfig = (config: {
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
     console.warn(
-      "[Embedding] WARNING: Using Local Dummy Embedding Service (Zero Vectors). " +
-      "Set CLOUDFLARE_WORKER_ACCOUNT_ID and CLOUDFLARE_WORKER_AI_API_KEY to use real embeddings."
+      "[Embedding] WARNING: Using Local Dummy Embedding Service (Fixed Non-Zero Vectors). " +
+        "Set CLOUDFLARE_WORKER_ACCOUNT_ID and CLOUDFLARE_WORKER_AI_API_KEY to use real embeddings.",
     );
-    // Return a zero vector of dimension 1024 to match DB schema (bge-m3)
-    // and prevent crashes during local development.
-    return new Array(1024).fill(0);
+    // Return a valid non-zero vector of dimension 1024 to match DB schema (bge-m3).
+    // Zero vectors cause "division by zero" errors in pgvector cosine distance calculations.
+    // We set the first element to 1 to ensure magnitude is 1.
+    const vec = new Array(1024).fill(0);
+    vec[0] = 1;
+    return vec;
   },
 };
 
@@ -86,7 +89,8 @@ const cloudflareEmbeddingService: IEmbeddingService = {
 export const getEmbeddingService = (env?: {
   WORKER?: string;
 }): IEmbeddingService => {
-  const hasCloudflareCreds = embeddingConfig.accountId && embeddingConfig.apiKey;
+  const hasCloudflareCreds =
+    embeddingConfig.accountId && embeddingConfig.apiKey;
 
   if (env?.WORKER || hasCloudflareCreds) {
     return cloudflareEmbeddingService;

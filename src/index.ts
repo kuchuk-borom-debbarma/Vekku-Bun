@@ -9,6 +9,7 @@ import { initSuggestionListeners } from "./modules/suggestions";
 import { getDb } from "./db";
 import { setJwtSecret } from "./lib/jwt";
 import { setEmbeddingConfig } from "./lib/embedding";
+import { setNotificationConfig } from "./lib/notification";
 
 // Initialize global event listeners
 initSuggestionListeners();
@@ -18,6 +19,8 @@ type Bindings = {
   JWT_SECRET?: string;
   CLOUDFLARE_WORKER_ACCOUNT_ID?: string;
   CLOUDFLARE_WORKER_AI_API_KEY?: string;
+  NOTIFICATION_API_CLIENT_ID?: string;
+  NOTIFICATION_API_CLIENT_SECRET?: string;
   WORKER?: string;
 };
 
@@ -68,6 +71,12 @@ export default {
     setEmbeddingConfig({
       accountId: env.CLOUDFLARE_WORKER_ACCOUNT_ID,
       apiKey: env.CLOUDFLARE_WORKER_AI_API_KEY,
+    });
+
+    // Initialize Notification Config
+    setNotificationConfig({
+      clientId: env.NOTIFICATION_API_CLIENT_ID,
+      clientSecret: env.NOTIFICATION_API_CLIENT_SECRET,
     });
 
     // Polyfill ExecutionContext for Bun/Local environments
