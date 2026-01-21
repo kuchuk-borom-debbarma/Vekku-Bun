@@ -75,7 +75,7 @@ authRouter.get("/signup/verify", async (c) => {
       name: payload.name as string,
     });
     
-    return c.json({ message: "User created successfully", user });
+    return c.json({ message: "User created successfully. You can now log in." });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
   }
