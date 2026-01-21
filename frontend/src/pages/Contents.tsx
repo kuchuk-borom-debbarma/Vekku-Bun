@@ -3,6 +3,7 @@ import { Plus, Search, FileText, ChevronLeft, ChevronRight, Trash2 } from "lucid
 import api from "@/lib/api";
 import CreateContentModal from "@/components/CreateContentModal";
 import EditContentModal from "@/components/EditContentModal";
+import ContentView from "@/components/ContentView";
 
 interface Content {
   id: string;
@@ -149,9 +150,14 @@ const Contents: React.FC = () => {
                     <FileText size={14} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-zinc-900 group-hover:text-indigo-600 transition-colors">
-                      {content.title || "Untitled Content"}
-                    </p>
+                    <ContentView 
+                      content={content}
+                      trigger={
+                        <p className="text-sm font-medium text-zinc-900 group-hover:text-indigo-600 transition-colors cursor-pointer hover:underline">
+                          {content.title || "Untitled Content"}
+                        </p>
+                      }
+                    />
                     <p className="text-xs text-zinc-500">
                       Edited {new Date(content.updatedAt || content.createdAt).toLocaleDateString()}
                     </p>

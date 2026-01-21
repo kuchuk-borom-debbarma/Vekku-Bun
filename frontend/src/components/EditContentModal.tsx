@@ -8,13 +8,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Edit2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import api from "@/lib/api";
 
 interface EditContentModalProps {
   content: {
     id: string;
     title: string;
-    body: string; // Updated from 'content' to 'body' based on your schema usually
+    body: string;
     contentType: string;
   };
   onContentUpdated: () => void;
@@ -26,6 +28,7 @@ const EditContentModal: React.FC<EditContentModalProps> = ({ content: initialCon
   const [title, setTitle] = useState(initialContent.title);
   const [body, setBody] = useState(initialContent.body);
   const [contentType, setContentType] = useState(initialContent.contentType);
+  const [view, setView] = useState<"write" | "preview">("write");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,6 +37,7 @@ const EditContentModal: React.FC<EditContentModalProps> = ({ content: initialCon
       setTitle(initialContent.title);
       setBody(initialContent.body);
       setContentType(initialContent.contentType);
+      setView("write");
     }
   }, [open, initialContent]);
 
@@ -43,7 +47,7 @@ const EditContentModal: React.FC<EditContentModalProps> = ({ content: initialCon
     setError("");
 
     try {
-      await api.patch(`/content/${initialContent.id}`, { title, content: body, contentType }); // API expects 'content' for body
+      await api.patch(`/content/${initialContent.id}`, { title, content: body, contentType }); 
       setOpen(false);
       onContentUpdated();
     } catch (err: any) {
@@ -63,7 +67,7 @@ const EditContentModal: React.FC<EditContentModalProps> = ({ content: initialCon
           </button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Content</DialogTitle>
         </DialogHeader>
@@ -100,21 +104,53 @@ const EditContentModal: React.FC<EditContentModalProps> = ({ content: initialCon
             >
               <option value="PLAIN_TEXT">Plain Text</option>
               <option value="MARKDOWN">Markdown</option>
-              <option value="JSON">JSON</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="edit-body" className="text-sm font-medium text-zinc-900">
-              Body
-            </label>
-            <textarea
-              id="edit-body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-200 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-sm min-h-[200px] font-mono"
-              required
-            />
+            <div className="flex items-center justify-between">
+              <label htmlFor="edit-body" className="text-sm font-medium text-zinc-900">
+                Body
+              </label>
+              {contentType === "MARKDOWN" && (
+                <div className="flex bg-zinc-100 rounded-md p-1">
+                  <button
+                    type="button"
+                    onClick={() => setView("write")}
+                    className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${
+                      view === "write" ? "bg-white shadow-sm text-zinc-900" : "text-zinc-500 hover:text-zinc-900"
+                    }`}
+                  >
+                    Write
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView("preview")}
+                    className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${
+                      view === "preview" ? "bg-white shadow-sm text-zinc-900" : "text-zinc-500 hover:text-zinc-900"
+                    }`}
+                  >
+                    Preview
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {contentType === "MARKDOWN" && view === "preview" ? (
+              <div className="w-full px-4 py-3 border border-zinc-200 rounded-md bg-zinc-50 min-h-[300px] prose prose-sm max-w-none overflow-y-auto">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {body || "*Nothing to preview*"}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <textarea
+                id="edit-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                className="w-full px-3 py-2 border border-zinc-200 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-sm min-h-[300px] font-mono"
+                required
+              />
+            )}
           </div>
 
           <DialogFooter>
