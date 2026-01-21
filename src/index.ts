@@ -91,6 +91,13 @@ export default {
 
     const processEnv = typeof process !== "undefined" ? process.env : {};
     const bindings = { ...processEnv, ...env } as Bindings;
+    
+    console.log("[App Init] Environment Check:", {
+      DATABASE_URL_SET: !!bindings.DATABASE_URL,
+      JWT_SECRET_SET: !!bindings.JWT_SECRET,
+      WORKER_FLAG: bindings.WORKER
+    });
+
     const app = createApp(bindings);
     return app.fetch(request, bindings, ctx);
   },

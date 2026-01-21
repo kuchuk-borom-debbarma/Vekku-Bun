@@ -1,5 +1,3 @@
-import notificationapi from "notificationapi-node-server-sdk";
-
 export interface NotificationTarget {
   id: string;      // Internal User ID or unique identifier
   email?: string;  // Email address
@@ -48,37 +46,66 @@ const notificationAPIService: INotificationService = {
       );
     }
 
-    notificationapi.init(clientId, clientSecret);
+    const url = `https://api.notificationapi.com/${clientId}/sender`;
+    const basicAuth = btoa(`${clientId}:${clientSecret}`);
+
+    // Exact structure from user's CURL command
+    const finalBody = {
+        type: params.metadata?.type || "vekku",
+        to: {
+            id: params.target.id,
+            email: params.target.email,
+            number: params.target.phone 
+        },
+        templateId: params.metadata?.templateId || "sign_up_link",
+        parameters: {
+             subject: params.subject,
+             body: params.body,
+             ...params.metadata?.params,
+        }
+    };
+
+    console.log("-----------------------------------------");
+    console.log("[Notification] Sending Request...");
+    console.log(`[Notification] URL: ${url}`);
+    console.log(`[Notification] Auth: Basic ${basicAuth.substring(0, 5)}... (redacted)`);
+    console.log(`[Notification] Body: ${JSON.stringify(finalBody, null, 2)}`);
+    console.log("-----------------------------------------");
 
     try {
-      // Mapping the generic interface to NotificationAPI's specific structure
-      // We prioritize metadata.templateId if present, otherwise we assume a default or use the subject/body as parameters.
-      await notificationapi.send({
-        notificationId: params.metadata?.templateId || "default_notification",
-        to: {
-          id: params.target.id,
-          email: params.target.email,
-        },
-        parameters: {
-          subject: params.subject,
-          body: params.body,
-          ...params.metadata?.params,
-        },
-        // Support for 'sub-type' or 'type' if provided in metadata
-        // The snippet used 'type', but SDK often uses 'subNext' or similar depending on version.
-        // We'll stick to what worked in the snippet.
-        // @ts-ignore
-        type: params.metadata?.type || "vekku",
-      });
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${basicAuth}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(finalBody)
+        });
+
+        const responseText = await response.text();
+        console.log(`[Notification] API Response Status: ${response.status}`);
+        console.log(`[Notification] API Response Body: ${responseText}`);
+        console.log("-----------------------------------------");
+
+        if (!response.ok) {
+            throw new Error(`NotificationAPI failed (${response.status}): ${responseText}`);
+        }
+
     } catch (error) {
-      console.error("Failed to send notification via NotificationAPI:", error);
-      throw error;
+        console.error("[Notification] Request Failed:", error);
+        throw error;
     }
   },
 };
 
 export const getNotificationService = (): INotificationService => {
   const hasCreds = notificationConfig.clientId && notificationConfig.clientSecret;
+
+  console.log("[Notification] Factory Check:", {
+    hasClientId: !!notificationConfig.clientId,
+    hasClientSecret: !!notificationConfig.clientSecret,
+    usingService: hasCreds ? "NotificationAPI" : "LocalFallback"
+  });
 
   if (hasCreds) {
     return notificationAPIService;

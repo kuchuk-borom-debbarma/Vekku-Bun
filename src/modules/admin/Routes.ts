@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getAdminService } from "./index";
 import { verifyJwt } from "../../lib/jwt";
+import { notificationTestRouter } from "./NotificationTest";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -81,5 +82,8 @@ adminRouter.get("/stats", async (c) => {
   const stats = await adminService.getSystemStats();
   return c.json(stats);
 });
+
+// Mount Notification Test Router
+adminRouter.route("/notifications", notificationTestRouter);
 
 export { adminRouter };

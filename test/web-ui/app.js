@@ -6,6 +6,16 @@ let currentUser = null;
 // Config
 const getApiUrl = () => document.getElementById('apiUrl').value.replace(/\/$/, '');
 
+async function testNotification() {
+    const email = document.getElementById('testNotifEmail').value || 'kuchukboromd@gmail.com';
+    try {
+        const res = await apiCall(`/admin/notifications/test-send?email=${encodeURIComponent(email)}`);
+        alert(res.message);
+    } catch (e) {
+        // apiCall handles logging
+    }
+}
+
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
     // URL Preset Logic

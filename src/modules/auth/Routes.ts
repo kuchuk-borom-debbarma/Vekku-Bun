@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { getHasher } from "../../lib/hashing";
 import { getAuthService } from "./index";
 import { generateSignupToken, verifySignupToken } from "../../lib/jwt";
+import { getNotificationService } from "../../lib/notification";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -34,10 +35,27 @@ authRouter.post("/signup/request", async (c) => {
   const baseUrl = `${url.protocol}//${url.host}`;
   const verifyUrl = `${baseUrl}/api/auth/signup/verify?token=${token}`;
   
-  console.log(`\n>>> Verify Signup: ${verifyUrl} <<<\n
-`);
+  console.log(`\n>>> Verify Signup: ${verifyUrl} <<<\n`);
 
-  return c.json({ message: "Verification email sent (check console)", token }); // returning token for ease of testing
+  // Send Notification
+  const notificationService = getNotificationService();
+  await notificationService.send({
+    target: {
+      id: email, // Use email as placeholder ID for new user
+      email: email,
+    },
+    subject: "Verify your Vekku account",
+    body: `Please click here to verify your account: ${verifyUrl}`,
+    metadata: {
+      templateId: "sign_up_link",
+      params: {
+        url: verifyUrl,
+        name: name,
+      },
+    },
+  });
+
+  return c.json({ message: "Verification email sent" });
 });
 
 // 2. Verify Signup (Create User)
