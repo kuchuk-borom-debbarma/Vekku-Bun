@@ -10,6 +10,8 @@ import { getDb } from "./db";
 import { setJwtSecret } from "./lib/jwt";
 import { setEmbeddingConfig } from "./lib/embedding";
 import { setNotificationConfig } from "./lib/notification";
+import { setRedisConfig } from "./lib/redis";
+import { rateLimiter } from "./middleware/rateLimiter";
 
 // Initialize global event listeners
 initSuggestionListeners();
@@ -22,6 +24,8 @@ type Bindings = {
   CLOUDFLARE_AI_MODEL?: string;
   NOTIFICATION_API_CLIENT_ID?: string;
   NOTIFICATION_API_CLIENT_SECRET?: string;
+  UPSTASH_REDIS_REST_URL?: string;
+  UPSTASH_REDIS_REST_TOKEN?: string;
   WORKER?: string;
 };
 
@@ -29,6 +33,7 @@ const createApp = (env: Bindings) => {
   const app = new Hono<{ Bindings: Bindings }>();
 
   app.use("/api/*", cors());
+  app.use("/api/*", rateLimiter);
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
 
@@ -79,6 +84,14 @@ export default {
       clientId: env.NOTIFICATION_API_CLIENT_ID,
       clientSecret: env.NOTIFICATION_API_CLIENT_SECRET,
     });
+
+    // Initialize Redis Config
+    if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+      setRedisConfig({
+        url: env.UPSTASH_REDIS_REST_URL,
+        token: env.UPSTASH_REDIS_REST_TOKEN,
+      });
+    }
 
     // Polyfill ExecutionContext for Bun/Local environments
     if (!ctx) {

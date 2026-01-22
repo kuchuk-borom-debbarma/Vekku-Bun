@@ -23,6 +23,8 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.1",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.3",
     "uuid": "^13.0.0"

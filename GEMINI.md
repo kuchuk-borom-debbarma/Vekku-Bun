@@ -31,9 +31,13 @@ The project uses a **Modular Functional** architecture.
 *   **Strategy:** Stateless Registration Token + JWT Login.
 *   **Flow:** Signup details are signed into a JWT link. User creation happens only upon verification.
 
-### 4. Platform Agnostic
-*   **Hono:** The core framework handles cross-platform compatibility.
-*   **Neon HTTP:** Database connections use `drizzle-orm/neon-http` for stateless, serverless-friendly connections.
+### 4. Platform Agnostic & Portability
+The project is architected to be **Runtime Agnostic**, allowing seamless switching between **Bun** (local development/high-performance compute) and **Cloudflare Workers** (edge deployment).
+
+*   **Hono Framework:** Used as the universal adapter. All business logic and routes must remain decoupled from runtime-specific globals (like `process.env` or `Bun.env`).
+*   **The Adapter Pattern (`src/index.ts`):** Runtime-specific configurations (Database URLs, Secrets, AI API keys) must be injected through the Hono `fetch` handler into the global service state.
+*   **Compatibility First:** When using external SDKs (e.g., Upstash, Cloudflare AI), always implement shims or overrides to handle runtime differences (like `fetch` behavior variations between Bun and Workers).
+*   **Neon HTTP:** Database connections use `drizzle-orm/neon-http` for stateless, serverless-friendly connections that work across any runtime supporting standard `fetch`.
 
 ## Building and Running
 
