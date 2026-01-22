@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Search, FileText, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Search, FileText, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import CreateContentModal from "@/components/CreateContentModal";
 import EditContentModal from "@/components/EditContentModal";

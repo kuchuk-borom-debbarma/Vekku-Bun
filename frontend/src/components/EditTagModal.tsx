@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Edit2 } from "lucide-react";
+import { Edit2 } from "lucide-react";
 import api from "@/lib/api";
 
 interface EditTagModalProps {

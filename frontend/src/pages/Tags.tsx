@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Search, Tag as TagIcon, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Tag as TagIcon, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
 import CreateTagModal from "@/components/CreateTagModal";
 import EditTagModal from "@/components/EditTagModal";

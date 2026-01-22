@@ -13,7 +13,7 @@ interface Content {
 }
 
 const Home: React.FC = () => {
-  const { user } = useAuth();
+  useAuth();
   const date = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   
   const [contents, setContents] = useState<Content[]>([]);
