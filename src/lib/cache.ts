@@ -6,7 +6,13 @@ export const CacheServiceUpstash = {
   get: async <T>(key: string): Promise<T | null> => {
     try {
       const redis = getRedisClient();
-      return await redis.get<T>(key);
+      const value = await redis.get<T>(key);
+      if (value !== null) {
+        console.log(`[Cache HIT] ${key}`);
+      } else {
+        console.log(`[Cache MISS] ${key}`);
+      }
+      return value;
     } catch (e) {
       // Fail open: log error but don't crash, return null (cache miss)
       console.error("[Cache Get Error]", e);
@@ -18,6 +24,7 @@ export const CacheServiceUpstash = {
     try {
       const redis = getRedisClient();
       await redis.set(key, value, { ex: ttlSeconds });
+      console.log(`[Cache SET] ${key} (TTL: ${ttlSeconds}s)`);
     } catch (e) {
       console.error("[Cache Set Error]", e);
     }
@@ -37,6 +44,7 @@ export const CacheServiceUpstash = {
     try {
       const redis = getRedisClient();
       await redis.del(key);
+      console.log(`[Cache DEL] ${key}`);
     } catch (e) {
       console.error("[Cache Del Error]", e);
     }
@@ -45,6 +53,7 @@ export const CacheServiceUpstash = {
   delByPattern: async (pattern: string) => {
     try {
       const redis = getRedisClient();
+      console.log(`[Cache DEL Pattern] ${pattern}`);
       let cursor = 0;
       do {
         const [nextCursor, keys] = await redis.scan(cursor, {
@@ -54,6 +63,7 @@ export const CacheServiceUpstash = {
         cursor = Number(nextCursor); // upstash/redis returns string cursor
         if (keys.length > 0) {
           await redis.del(...keys);
+          console.log(`[Cache DEL Pattern] Removed ${keys.length} keys`);
         }
       } while (cursor !== 0);
     } catch (e) {
