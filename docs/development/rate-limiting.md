@@ -51,28 +51,19 @@ When active, the API includes standard rate limit headers:
 ## 4. Key Implementation Details
 
 ### `src/lib/redis.ts`
-Manages the singleton instance of the Redis client. It allows for reconfiguration if the environment context changes (e.g., during hot reloads or testing).
-
-#### Bun Compatibility Note
-Bun's `fetch` implementation does not yet support the `cache` property in the `RequestInit` object. Since the Upstash SDK defaults to `cache: "no-store"`, it throws an error in Bun. We handle this by overriding the `fetch` function in the `Redis` constructor to strip the `cache` property:
-
-```typescript
-fetch: (url: string, init?: RequestInit) => {
-  if (init) {
-    delete init.cache;
-  }
-  return fetch(url, init);
-}
-```
+Manages the singleton instance of the Redis client. It allows for reconfiguration if the environment context changes (e.g., during hot reloads or testing). It includes an **Idempotency Check** to prevent unnecessary client recreation when the configuration hasn't changed, ensuring that the `Ratelimit` instance (and its local cache) persists across requests in warm workers.
 
 ### `src/middleware/rateLimiter.ts`
 Uses the `@upstash/ratelimit` SDK to handle the atomic counter increments and window calculations.
+
+**Critical Optimization:** We use `ephemeralCache` (a local Map) to cache block decisions in memory. This is essential for serverless environments (Cloudflare Workers) to reduce latency and Redis costs by blocking repeated requests locally.
 
 ```typescript
 ratelimit = new Ratelimit({
   redis: redis,
   limiter: Ratelimit.slidingWindow(10, "10 s"),
-  prefix: "@upstash/ratelimit", // Namespace to keep keys separate from data
+  ephemeralCache: new Map(), // <--- High Performance Local Cache
+  prefix: "@upstash/ratelimit",
 });
 ```
 

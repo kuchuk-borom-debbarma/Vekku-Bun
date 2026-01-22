@@ -6,10 +6,6 @@ import { getRedisClient } from "../lib/redis";
 // For now, we use a single global limiter instance lazily initialized
 let ratelimit: Ratelimit | null = null;
 
-export const resetRateLimiter = () => {
-  ratelimit = null;
-};
-
 const getRatelimit = () => {
   if (ratelimit) return ratelimit;
 
@@ -19,6 +15,14 @@ const getRatelimit = () => {
       redis: redis,
       limiter: Ratelimit.slidingWindow(10, "10 s"), // 10 requests per 10 seconds
       analytics: true,
+      /**
+       * Ephemeral Cache (Memory Cache)
+       * ------------------------------
+       * Critical for serverless environments (Cloudflare Workers, Lambda).
+       * It caches block decisions in memory for a short duration, preventing
+       * unnecessary Redis calls for already blocked users or high-traffic bursts.
+       */
+      ephemeralCache: new Map(), 
       prefix: "@upstash/ratelimit",
     });
     return ratelimit;
