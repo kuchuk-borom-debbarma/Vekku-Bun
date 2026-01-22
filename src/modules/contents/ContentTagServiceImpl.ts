@@ -4,6 +4,7 @@ import { contentTags, userTags } from "../../db/schema";
 import type { ChunkPaginationData } from "../../lib/pagination";
 import { generateUUID } from "../../lib/uuid";
 import type { ContentTag, IContentTagService } from "./ContentTagService";
+import { CacheServiceUpstash } from "../../lib/cache";
 
 const SEGMENT_SIZE = 100;
 
@@ -27,6 +28,11 @@ export class ContentTagServiceImpl implements IContentTagService {
       });
 
       await db.insert(contentTags).values(values).onConflictDoNothing();
+
+      // Invalidate Cache
+      const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.contentId, "*");
+      await CacheServiceUpstash.delByPattern(cachePattern);
+
       return true;
     } catch (err) {
       console.error(
@@ -53,6 +59,11 @@ export class ContentTagServiceImpl implements IContentTagService {
             inArray(contentTags.tagId, data.tagIds),
           ),
         );
+
+      // Invalidate Cache
+      const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.contentId, "*");
+      await CacheServiceUpstash.delByPattern(cachePattern);
+
       return true;
     } catch (err) {
       console.error(`Error removing tags from content: ${err}`);
@@ -107,6 +118,21 @@ export class ContentTagServiceImpl implements IContentTagService {
     offset?: number;
   }): Promise<ChunkPaginationData<ContentTag>> {
     const { contentId, userId, chunkId = null, limit = 20, offset = 0 } = data;
+    
+    // Cache Check
+    const cacheKey = CacheServiceUpstash.generateKey(
+      "content-tags",
+      "list",
+      contentId,
+      chunkId,
+      limit,
+      offset,
+    );
+    const cached = await CacheServiceUpstash.get<ChunkPaginationData<ContentTag>>(
+      cacheKey,
+    );
+    if (cached) return cached;
+
     const db = getDb();
 
     if (offset < 0) throw new Error("Offset cannot be negative.");
@@ -184,7 +210,7 @@ export class ContentTagServiceImpl implements IContentTagService {
       }));
     }
 
-    return {
+    const result = {
       data: pageData,
       metadata: {
         nextChunkId,
@@ -194,5 +220,10 @@ export class ContentTagServiceImpl implements IContentTagService {
         offset,
       },
     };
+
+    // Cache Set
+    await CacheServiceUpstash.set(cacheKey, result);
+
+    return result;
   }
 }
