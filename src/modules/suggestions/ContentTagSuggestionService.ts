@@ -22,5 +22,11 @@ export interface IContentTagSuggestionService {
     suggestionsCount: number;
   }): Promise<void>;
 
-  getSuggestionsForContent(contentId: string): Promise<ContentTagSuggestion[]>;
+  /**
+   * get suggested tags of a content
+   */
+  getSuggestionsForContent(
+    contentId: string,
+    userId: string,
+  ): Promise<ContentTagSuggestion[]>;
 }

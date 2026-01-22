@@ -58,7 +58,12 @@ export class TagServiceImpl implements ITagService {
 
       // Invalidate List Cache
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
-      await CacheServiceUpstash.delByPattern(listCachePattern);
+      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "list", tag.userId, "*");
+      
+      await Promise.all([
+        CacheServiceUpstash.delByPattern(listCachePattern),
+        CacheServiceUpstash.delByPattern(suggestionCachePattern),
+      ]);
 
       /**
        * EVENT-DRIVEN ARCHITECTURE (Asynchronous Learning)
@@ -152,7 +157,12 @@ export class TagServiceImpl implements ITagService {
 
       // Invalidate List Cache
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
-      await CacheServiceUpstash.delByPattern(listCachePattern);
+      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "list", tag.userId, "*");
+      
+      await Promise.all([
+        CacheServiceUpstash.delByPattern(listCachePattern),
+        CacheServiceUpstash.delByPattern(suggestionCachePattern),
+      ]);
 
       // Publish Event
       try {

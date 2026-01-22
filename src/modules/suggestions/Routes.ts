@@ -45,9 +45,10 @@ suggestionRouter.use("*", async (c, next) => {
 // GET Suggestions for Content
 suggestionRouter.get("/content/:contentId", async (c) => {
   const contentId = c.req.param("contentId");
+  const user = c.get("user");
   const suggestionService = getContentTagSuggestionService();
 
-  const result = await suggestionService.getSuggestionsForContent(contentId);
+  const result = await suggestionService.getSuggestionsForContent(contentId, user.id);
   return c.json(result);
 });
 
@@ -76,7 +77,7 @@ suggestionRouter.post("/content/:id/regenerate", async (c) => {
     suggestionsCount: 20, // Default count
   });
 
-  const updatedSuggestions = await suggestionService.getSuggestionsForContent(contentId);
+  const updatedSuggestions = await suggestionService.getSuggestionsForContent(contentId, user.id);
   return c.json({ message: "Suggestions regenerated", data: updatedSuggestions });
 });
 

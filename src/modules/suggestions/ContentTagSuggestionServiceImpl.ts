@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import {
   tagEmbeddings,
@@ -124,7 +124,8 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     // Invalidate Cache
     const cacheKey = CacheServiceUpstash.generateKey(
       "suggestions",
-      "content",
+      "list",
+      data.userId,
       data.contentId,
     );
     await CacheServiceUpstash.del(cacheKey);
@@ -134,10 +135,12 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
   async getSuggestionsForContent(
     contentId: string,
+    userId: string,
   ): Promise<ContentTagSuggestion[]> {
     const cacheKey = CacheServiceUpstash.generateKey(
       "suggestions",
-      "content",
+      "list",
+      userId,
       contentId,
     );
     const cached =
@@ -155,7 +158,12 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       })
       .from(contentTagSuggestions)
       .innerJoin(userTags, eq(contentTagSuggestions.tagId, userTags.id))
-      .where(eq(contentTagSuggestions.contentId, contentId));
+      .where(
+        and(
+          eq(contentTagSuggestions.contentId, contentId),
+          eq(contentTagSuggestions.userId, userId),
+        ),
+      );
 
     const data: ContentTagSuggestion[] = results.map((r) => ({
       id: r.suggestionId,

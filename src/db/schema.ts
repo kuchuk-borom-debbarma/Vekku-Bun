@@ -102,9 +102,15 @@ export const contentTags = pgTable(
   "content_tags",
   {
     id: varchar({ length: 255 }).primaryKey(),
-    userId: varchar("fk_user_id", { length: 255 }).notNull(),
-    contentId: varchar("fk_content_id", { length: 255 }).notNull(),
-    tagId: varchar("fk_tag_id", { length: 255 }).notNull(),
+    userId: varchar("fk_user_id", { length: 255 })
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    contentId: varchar("fk_content_id", { length: 255 })
+      .notNull()
+      .references(() => contents.id, { onDelete: "cascade" }),
+    tagId: varchar("fk_tag_id", { length: 255 })
+      .notNull()
+      .references(() => userTags.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").notNull(),
   },
   (table) => [
@@ -122,9 +128,15 @@ export const contentTagSuggestions = pgTable(
   "content_tag_suggestions",
   {
     id: varchar({ length: 255 }).primaryKey(),
-    contentId: varchar("fk_content_id", { length: 255 }).notNull(),
-    tagId: varchar("fk_tag_id", { length: 255 }).notNull(),
-    userId: varchar("fk_user_id", { length: 255 }).notNull(),
+    contentId: varchar("fk_content_id", { length: 255 })
+      .notNull()
+      .references(() => contents.id, { onDelete: "cascade" }),
+    tagId: varchar("fk_tag_id", { length: 255 })
+      .notNull()
+      .references(() => userTags.id, { onDelete: "cascade" }),
+    userId: varchar("fk_user_id", { length: 255 })
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     score: text().notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
