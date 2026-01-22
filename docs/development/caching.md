@@ -46,7 +46,7 @@ We favor **invalidation** over updating the cache. When data changes:
 | **Contents** | `contents:detail:{contentId}` | 5m | Full content object. |
 | **Contents** | `contents:list:{userId}:{chunkId}:{limit}:{offset}` | 5m | Paginated list chunk. |
 | **Tags** | `tags:list:{userId}:{chunkId}:{limit}:{offset}` | 5m | Paginated tag list. |
-| **Suggestions** | `suggestions:content:{contentId}` | 5m | List of suggested tags for content. |
+| **Suggestions** | `suggestions:list:{userId}:{contentId}` | 5m | Scoped suggested tags for content. |
 | **Admin** | `admin:stats` | 60s | System-wide counts (Users, Contents, Tags). |
 
 ---
@@ -68,20 +68,27 @@ We favor **invalidation** over updating the cache. When data changes:
 1. Update/Delete in DB.
 2. **Invalidate Detail:** `del("contents:detail:{id}")`.
 3. **Invalidate Lists:** `delByPattern("contents:list:{userId}:*")`.
-4. Publish `CONTENT.UPDATED` / `CONTENT.DELETED` event.
+4. **Invalidate Suggestions:** `del("suggestions:list:{userId}:{id}")`.
+5. Publish `CONTENT.UPDATED` / `CONTENT.DELETED` event.
 
 ---
 
-### 2. Tag Management
+### 2. Tag Management & "Nuclear" Invalidation
+
+Tag library changes (deleting a tag or changing its semantic meaning) have a ripple effect on suggestions across *all* content. To avoid expensive AI-driven regeneration of every content piece, we use a **Nuclear Invalidation** strategy.
 
 **Read Flow (Get Tags):**
 - Checks `tags:list:{userId}:...`.
-- *Note: `getTagsByIds` is currently not cached as it is often used for validation.*
 
-**Write Flow (Create/Update/Delete Tag):**
+**Write Flow (Delete/Update Tag Semantic):**
 1. Perform DB operation.
-2. **Invalidate Lists:** `delByPattern("tags:list:{userId}:*")`.
-3. Publish corresponding `TAG.*` event (triggers async embedding generation).
+2. **Database Cascade:** The DB automatically removes the tag from `content_tag_suggestions` via `ON DELETE CASCADE`.
+3. **Invalidate Tag Lists:** `delByPattern("tags:list:{userId}:*")`.
+4. **Nuclear Suggestion Flush:** `delByPattern("suggestions:list:{userId}:*")`. 
+    - This instantly marks all suggestions for this user as stale.
+    - We **do not** re-run embedding logic. 
+    - On next read, the API simply fetches the *remaining* valid suggestions from the DB.
+5. Publish corresponding `TAG.*` event.
 
 ---
 
@@ -97,18 +104,18 @@ Suggestions are unique because they are generated asynchronously via background 
     - API returns "Success" to user.
 
 2. **User Views Content:**
-    - API checks `suggestions:content:{id}`.
+    - API checks `suggestions:list:{userId}:{id}`.
     - Returns *existing* (potentially old) suggestions from Cache or DB.
 
 3. **Background Worker (Listener):**
     - Receives `CONTENT.UPDATED`.
-    - Generates new Embedding for content.
-    - vector Search (Cosmic Distance) for matching tags.
+    - Generates new Embedding for content (Expensive AI Task).
+    - Vector Search for matching tags.
     - **Writes** new suggestions to `content_tag_suggestions` table.
-    - **INVALIDATION:** Calls `del("suggestions:content:{id}")`.
+    - **INVALIDATION:** Calls `del("suggestions:list:{userId}:{id}")`.
 
 4. **User Refreshes / Next View:**
-    - API checks `suggestions:content:{id}` -> **MISS** (was deleted by worker).
+    - API checks cache -> **MISS** (was deleted by worker).
     - API fetches fresh suggestions from DB.
     - API caches new suggestions.
 
