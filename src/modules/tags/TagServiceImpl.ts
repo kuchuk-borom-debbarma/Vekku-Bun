@@ -59,10 +59,12 @@ export class TagServiceImpl implements ITagService {
       // Invalidate List Cache
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
       const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "list", tag.userId, "*");
+      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", tag.userId, "*");
       
       await Promise.all([
         CacheServiceUpstash.delByPattern(listCachePattern),
         CacheServiceUpstash.delByPattern(suggestionCachePattern),
+        CacheServiceUpstash.delByPattern(contentTagsCachePattern),
       ]);
 
       /**
@@ -158,10 +160,12 @@ export class TagServiceImpl implements ITagService {
       // Invalidate List Cache
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
       const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "list", tag.userId, "*");
+      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", tag.userId, "*");
       
       await Promise.all([
         CacheServiceUpstash.delByPattern(listCachePattern),
         CacheServiceUpstash.delByPattern(suggestionCachePattern),
+        CacheServiceUpstash.delByPattern(contentTagsCachePattern),
       ]);
 
       // Publish Event

@@ -30,7 +30,7 @@ export class ContentTagServiceImpl implements IContentTagService {
       await db.insert(contentTags).values(values).onConflictDoNothing();
 
       // Invalidate Cache
-      const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.contentId, "*");
+      const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, data.contentId, "*");
       await CacheServiceUpstash.delByPattern(cachePattern);
 
       return true;
@@ -61,7 +61,7 @@ export class ContentTagServiceImpl implements IContentTagService {
         );
 
       // Invalidate Cache
-      const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.contentId, "*");
+      const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, data.contentId, "*");
       await CacheServiceUpstash.delByPattern(cachePattern);
 
       return true;
@@ -123,6 +123,7 @@ export class ContentTagServiceImpl implements IContentTagService {
     const cacheKey = CacheServiceUpstash.generateKey(
       "content-tags",
       "list",
+      userId,
       contentId,
       chunkId,
       limit,
