@@ -5,6 +5,7 @@ import type { ChunkPaginationData } from "../../lib/pagination";
 import type { ITagService, UserTag } from "./TagService";
 import { getDb } from "../../db";
 import { getEventBus, TOPICS } from "../../lib/events";
+import { CacheServiceUpstash } from "../../lib/cache";
 
 const SEGMENT_SIZE = 2000;
 
@@ -54,6 +55,10 @@ export class TagServiceImpl implements ITagService {
         createdAt: tag.createdAt,
         updatedAt: tag.updatedAt,
       };
+
+      // Invalidate List Cache
+      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
+      await CacheServiceUpstash.delByPattern(listCachePattern);
 
       /**
        * EVENT-DRIVEN ARCHITECTURE (Asynchronous Learning)
@@ -145,6 +150,10 @@ export class TagServiceImpl implements ITagService {
         updatedAt: tag.updatedAt,
       };
 
+      // Invalidate List Cache
+      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
+      await CacheServiceUpstash.delByPattern(listCachePattern);
+
       // Publish Event
       try {
         console.log(`[TagService] Publishing TAG.UPDATED event for: ${tag.name}`);
@@ -174,6 +183,10 @@ export class TagServiceImpl implements ITagService {
       .returning();
 
     if (result.length > 0) {
+      // Invalidate List Cache
+      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", data.userId, "*");
+      await CacheServiceUpstash.delByPattern(listCachePattern);
+
       // Publish Event
       try {
         getEventBus().publish(
@@ -198,6 +211,23 @@ export class TagServiceImpl implements ITagService {
     offset?: number;
   }): Promise<ChunkPaginationData<UserTag>> {
     const { userId, chunkId = null, limit = 20, offset = 0 } = data;
+
+    // Cache Check
+    const cacheKey = CacheServiceUpstash.generateKey(
+      "tags",
+      "list",
+      userId,
+      chunkId,
+      limit,
+      offset,
+    );
+    const cached = await CacheServiceUpstash.get<ChunkPaginationData<UserTag>>(
+      cacheKey,
+    );
+    if (cached) {
+      return cached;
+    }
+
     const db = getDb();
     if (offset < 0) throw new Error("Offset cannot be negative.");
     if (limit < 1) throw new Error("Limit must be at least 1.");
@@ -270,7 +300,7 @@ export class TagServiceImpl implements ITagService {
         }));
     }
 
-    return {
+    const result = {
       data: pageData,
       metadata: {
         nextChunkId,
@@ -280,6 +310,11 @@ export class TagServiceImpl implements ITagService {
         offset,
       },
     };
+
+    // Cache Set
+    await CacheServiceUpstash.set(cacheKey, result);
+
+    return result;
   }
 
   async getTagsByIds(tagIds: string[], userId: string): Promise<UserTag[]> {

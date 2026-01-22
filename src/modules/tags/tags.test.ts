@@ -10,6 +10,16 @@ mock.module("../../lib/uuid", () => ({
   normalize: mockNormalize,
 }));
 
+mock.module("../../lib/cache", () => ({
+  CacheServiceUpstash: {
+    get: mock(async () => null),
+    set: mock(async () => {}),
+    del: mock(async () => {}),
+    delByPattern: mock(async () => {}),
+    generateKey: (...parts: any[]) => parts.join(":"),
+  },
+}));
+
 // Mock Database
 const createMockQuery = (data: any) => {
   const query = Promise.resolve(data) as any;
@@ -108,6 +118,9 @@ describe("TagService", () => {
         updatedAt: new Date(),
       };
 
+      // 1. First call is db.select for existing tag
+      // 2. Second call is db.update
+      mockDb.select.mockImplementationOnce(() => createMockQuery([{ name: "old-name" }]));
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
       const result = await tagService.updateTag({
@@ -116,6 +129,7 @@ describe("TagService", () => {
         name: "new-name",
       });
 
+      expect(mockDb.select).toHaveBeenCalled();
       expect(mockDb.update).toHaveBeenCalled();
       expect(result?.name).toBe("new-name");
       expect(result?.semantic).toBe("old-semantic");
@@ -131,6 +145,7 @@ describe("TagService", () => {
         updatedAt: new Date(),
       };
 
+      mockDb.select.mockImplementationOnce(() => createMockQuery([{ name: "work" }]));
       mockDb.update.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
       const result = await tagService.updateTag({

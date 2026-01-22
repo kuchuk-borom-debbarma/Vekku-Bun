@@ -9,6 +9,7 @@ import {
   type IContentService,
 } from "./ContentService";
 import { getEventBus, TOPICS } from "../../lib/events";
+import { CacheServiceUpstash } from "../../lib/cache";
 
 const SEGMENT_SIZE = 20;
 
@@ -43,12 +44,20 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
-    console.log(`[ContentService] Content Created: ${content.title} (${content.id})`);
+    console.log(
+      `[ContentService] Content Created: ${content.title} (${content.id})`,
+    );
+
+    // Invalidate List Cache
+    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", data.userId, "*");
+    await CacheServiceUpstash.delByPattern(listCachePattern);
 
     // Trigger Event-Driven Suggestions
     try {
       const eventBus = getEventBus();
-      console.log(`[ContentService] Publishing CONTENT.CREATED event for: ${content.id}`);
+      console.log(
+        `[ContentService] Publishing CONTENT.CREATED event for: ${content.id}`,
+      );
       // We don't await here to return to the user faster.
       // If ctx is provided, eventBus.publish will use ctx.waitUntil internally.
       eventBus.publish(
@@ -115,13 +124,25 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
-    console.log(`[ContentService] Content Updated: ${content.title} (${content.id})`);
+    console.log(
+      `[ContentService] Content Updated: ${content.title} (${content.id})`,
+    );
+
+    // Invalidate Caches
+    const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", content.id);
+    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", content.userId, "*");
+    await Promise.all([
+      CacheServiceUpstash.del(detailCacheKey),
+      CacheServiceUpstash.delByPattern(listCachePattern),
+    ]);
 
     // Regenerate suggestions via Event
     if (data.content) {
       try {
         const eventBus = getEventBus();
-        console.log(`[ContentService] Publishing CONTENT.UPDATED event for: ${content.id}`);
+        console.log(
+          `[ContentService] Publishing CONTENT.UPDATED event for: ${content.id}`,
+        );
         eventBus.publish(
           TOPICS.CONTENT.UPDATED,
           {
@@ -161,6 +182,14 @@ export class ContentServiceImpl implements IContentService {
       .returning();
 
     if (result.length > 0) {
+      // Invalidate Caches
+      const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
+      const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");
+      await Promise.all([
+        CacheServiceUpstash.del(detailCacheKey),
+        CacheServiceUpstash.delByPattern(listCachePattern),
+      ]);
+
       try {
         const eventBus = getEventBus();
         eventBus.publish(TOPICS.CONTENT.DELETED, { id, userId }, userId);
@@ -174,6 +203,10 @@ export class ContentServiceImpl implements IContentService {
   }
 
   async getContentById(id: string): Promise<Content | null> {
+    const cacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
+    const cached = await CacheServiceUpstash.get<Content>(cacheKey);
+    if (cached) return cached;
+
     const result = await this.db
       .select()
       .from(schema.contents)
@@ -183,7 +216,7 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
-    return {
+    const data = {
       id: content.id,
       title: content.title,
       body: content.body,
@@ -192,6 +225,10 @@ export class ContentServiceImpl implements IContentService {
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
+
+    await CacheServiceUpstash.set(cacheKey, data);
+
+    return data;
   }
 
   async getContentsByUserId(
@@ -200,6 +237,18 @@ export class ContentServiceImpl implements IContentService {
     offset: number = 0,
     chunkId?: string,
   ): Promise<ChunkPaginationData<Content>> {
+    const cacheKey = CacheServiceUpstash.generateKey(
+      "contents",
+      "list",
+      userId,
+      chunkId,
+      limit,
+      offset,
+    );
+    const cached =
+      await CacheServiceUpstash.get<ChunkPaginationData<Content>>(cacheKey);
+    if (cached) return cached;
+
     if (offset < 0) throw new Error("Offset cannot be negative.");
     if (limit < 1) throw new Error("Limit must be at least 1.");
     if (offset >= SEGMENT_SIZE) {
@@ -268,7 +317,7 @@ export class ContentServiceImpl implements IContentService {
         }));
     }
 
-    return {
+    const result = {
       data: pageData,
       metadata: {
         nextChunkId,
@@ -278,5 +327,9 @@ export class ContentServiceImpl implements IContentService {
         offset,
       },
     };
+
+    await CacheServiceUpstash.set(cacheKey, result);
+
+    return result;
   }
 }

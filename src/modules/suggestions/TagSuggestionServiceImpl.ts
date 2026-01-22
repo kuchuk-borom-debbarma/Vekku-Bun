@@ -7,6 +7,7 @@ import type {
   ITagSuggestionService,
   ContentSuggestion,
 } from "./TagSuggestionService";
+import { CacheServiceUpstash } from "../../lib/cache";
 
 export class TagSuggestionServiceImpl implements ITagSuggestionService {
   async ensureConceptExists(semantic: string): Promise<string> {
@@ -110,12 +111,21 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
             }))
         );
     }
+    
+    // Invalidate Cache
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", "content", data.contentId);
+    await CacheServiceUpstash.del(cacheKey);
+
     console.log(`[SuggestionService] Suggestions saved to DB.`);
   }
 
   async getSuggestionsForContent(
     contentId: string,
   ): Promise<ContentSuggestion[]> {
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", "content", contentId);
+    const cached = await CacheServiceUpstash.get<ContentSuggestion[]>(cacheKey);
+    if (cached) return cached;
+
     const db = getDb();
 
     // Join contentTagSuggestions with userTags to get names
@@ -132,6 +142,10 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
         eq(contentTagSuggestions.contentId, contentId),
       );
 
-    return results.sort((a, b) => parseFloat(a.score) - parseFloat(b.score));
+    const data = results.sort((a, b) => parseFloat(a.score) - parseFloat(b.score));
+    
+    await CacheServiceUpstash.set(cacheKey, data);
+
+    return data;
   }
 }

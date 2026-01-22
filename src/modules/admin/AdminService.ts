@@ -1,6 +1,7 @@
 import { eq, desc, count, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { getDb } from "../../db";
+import { CacheServiceUpstash } from "../../lib/cache";
 
 export interface IAdminService {
   getAllUsers(limit: number, offset: number): Promise<any[]>;
@@ -49,15 +50,23 @@ export class AdminServiceImpl implements IAdminService {
   }
 
   async getSystemStats() {
+    const cacheKey = CacheServiceUpstash.generateKey("admin", "stats");
+    const cached = await CacheServiceUpstash.get<any>(cacheKey);
+    if (cached) return cached;
+
     const db = getDb();
     const [userCount] = await db.select({ count: count() }).from(schema.user);
     const [contentCount] = await db.select({ count: count() }).from(schema.contents);
     const [tagCount] = await db.select({ count: count() }).from(schema.userTags);
     
-    return {
+    const stats = {
       users: userCount.count,
       contents: contentCount.count,
       tags: tagCount.count,
     };
+
+    await CacheServiceUpstash.set(cacheKey, stats, 60); // Cache for 60 seconds
+
+    return stats;
   }
 }
