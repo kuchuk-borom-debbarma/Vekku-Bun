@@ -1,9 +1,9 @@
-import type { ITagSuggestionService } from "./TagSuggestionService";
-import { TagSuggestionServiceImpl } from "./TagSuggestionServiceImpl";
+import type { IContentTagSuggestionService } from "./ContentTagSuggestionService";
+import { ContentTagSuggestionServiceImpl } from "./ContentTagSuggestionServiceImpl";
 import { initSuggestionListeners } from "./Listeners";
 
-export const getTagSuggestionService = (): ITagSuggestionService => {
-  return new TagSuggestionServiceImpl();
+export const getContentTagSuggestionService = (): IContentTagSuggestionService => {
+  return new ContentTagSuggestionServiceImpl();
 };
 
 export { initSuggestionListeners };

@@ -1,15 +1,19 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import { tagEmbeddings, userTags, contentTagSuggestions } from "../../db/schema";
+import {
+  tagEmbeddings,
+  userTags,
+  contentTagSuggestions,
+} from "../../db/schema";
 import { getEmbeddingService } from "../../lib/embedding";
 import { generateUUID, normalize } from "../../lib/uuid";
 import type {
-  ITagSuggestionService,
-  ContentSuggestion,
-} from "./TagSuggestionService";
+  IContentTagSuggestionService,
+  ContentTagSuggestion,
+} from "./ContentTagSuggestionService";
 import { CacheServiceUpstash } from "../../lib/cache";
 
-export class TagSuggestionServiceImpl implements ITagSuggestionService {
+export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
   async ensureConceptExists(semantic: string): Promise<string> {
     const db = getDb();
     const normalized = normalize(semantic);
@@ -38,8 +42,10 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
 
     // Generate embedding
     const embedding = await embedder.generateEmbedding(normalized);
-    console.log(`[SuggestionService] Generated Embedding for "${normalized}" (Vector Size: ${embedding.length})`);
-    
+    console.log(
+      `[SuggestionService] Generated Embedding for "${normalized}" (Vector Size: ${embedding.length})`,
+    );
+
     // Update or Insert with embedding
     await db
       .insert(tagEmbeddings)
@@ -55,8 +61,10 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
           updatedAt: new Date(),
         },
       });
-    
-    console.log(`[SuggestionService] Concept "${normalized}" learned/updated in DB.`);
+
+    console.log(
+      `[SuggestionService] Concept "${normalized}" learned/updated in DB.`,
+    );
     return conceptId;
   }
 
@@ -66,7 +74,9 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
     userId: string;
     suggestionsCount: number;
   }): Promise<void> {
-    console.log(`[SuggestionService] Generating suggestions for content: ${data.contentId}`);
+    console.log(
+      `[SuggestionService] Generating suggestions for content: ${data.contentId}`,
+    );
     const db = getDb();
     const embedder = getEmbeddingService();
 
@@ -87,33 +97,36 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
       })
       .from(userTags)
       .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
-      .where(
-        eq(userTags.userId, data.userId)
-      )
+      .where(eq(userTags.userId, data.userId))
       .orderBy(distance) // Closest distance first
       .limit(data.suggestionsCount);
-    
+
     console.log(`[SuggestionService] Found ${suggestions.length} suggestions.`);
 
     // 3. Store Suggestions
     // Transactional safety would be good here, but for now we'll do delete-then-insert
-    await db.delete(contentTagSuggestions)
-        .where(eq(contentTagSuggestions.contentId, data.contentId));
+    await db
+      .delete(contentTagSuggestions)
+      .where(eq(contentTagSuggestions.contentId, data.contentId));
 
     if (suggestions.length > 0) {
-        await db.insert(contentTagSuggestions).values(
-            suggestions.map(s => ({
-                id: generateUUID(),
-                contentId: data.contentId,
-                tagId: s.id,
-                userId: data.userId,
-                score: String(s.score),
-            }))
-        );
+      await db.insert(contentTagSuggestions).values(
+        suggestions.map((s) => ({
+          id: generateUUID(),
+          contentId: data.contentId,
+          tagId: s.id,
+          userId: data.userId,
+          score: String(s.score),
+        })),
+      );
     }
-    
+
     // Invalidate Cache
-    const cacheKey = CacheServiceUpstash.generateKey("suggestions", "content", data.contentId);
+    const cacheKey = CacheServiceUpstash.generateKey(
+      "suggestions",
+      "content",
+      data.contentId,
+    );
     await CacheServiceUpstash.del(cacheKey);
 
     console.log(`[SuggestionService] Suggestions saved to DB.`);
@@ -121,9 +134,14 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
 
   async getSuggestionsForContent(
     contentId: string,
-  ): Promise<ContentSuggestion[]> {
-    const cacheKey = CacheServiceUpstash.generateKey("suggestions", "content", contentId);
-    const cached = await CacheServiceUpstash.get<ContentSuggestion[]>(cacheKey);
+  ): Promise<ContentTagSuggestion[]> {
+    const cacheKey = CacheServiceUpstash.generateKey(
+      "suggestions",
+      "content",
+      contentId,
+    );
+    const cached =
+      await CacheServiceUpstash.get<ContentTagSuggestion[]>(cacheKey);
     if (cached) return cached;
 
     const db = getDb();
@@ -131,19 +149,22 @@ export class TagSuggestionServiceImpl implements ITagSuggestionService {
     // Join contentTagSuggestions with userTags to get names
     const results = await db
       .select({
-        id: contentTagSuggestions.id,
-        tagId: userTags.id,
-        name: userTags.name,
+        suggestionId: contentTagSuggestions.id,
         score: contentTagSuggestions.score,
+        tag: userTags,
       })
       .from(contentTagSuggestions)
       .innerJoin(userTags, eq(contentTagSuggestions.tagId, userTags.id))
-      .where(
-        eq(contentTagSuggestions.contentId, contentId),
-      );
+      .where(eq(contentTagSuggestions.contentId, contentId));
 
-    const data = results.sort((a, b) => parseFloat(a.score) - parseFloat(b.score));
-    
+    const data: ContentTagSuggestion[] = results.map((r) => ({
+      id: r.suggestionId,
+      score: r.score,
+      tag: r.tag,
+    })).sort(
+      (a, b) => parseFloat(a.score) - parseFloat(b.score),
+    );
+
     await CacheServiceUpstash.set(cacheKey, data);
 
     return data;

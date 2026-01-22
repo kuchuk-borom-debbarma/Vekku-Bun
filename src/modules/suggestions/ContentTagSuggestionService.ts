@@ -1,13 +1,14 @@
-export type ContentSuggestion = {
+import type { UserTag } from "../tags/TagService";
+
+export type ContentTagSuggestion = {
   id: string;
-  tagId: string;
-  name: string;
+  tag: UserTag;
   score: string;
 };
 
-export interface ITagSuggestionService {
+export interface IContentTagSuggestionService {
   learnTag(semantic: string): Promise<string>;
-  
+
   /**
    * Ensures a tag concept exists in the DB, potentially without an embedding.
    * Returns the concept ID.
@@ -21,5 +22,5 @@ export interface ITagSuggestionService {
     suggestionsCount: number;
   }): Promise<void>;
 
-  getSuggestionsForContent(contentId: string): Promise<ContentSuggestion[]>;
+  getSuggestionsForContent(contentId: string): Promise<ContentTagSuggestion[]>;
 }

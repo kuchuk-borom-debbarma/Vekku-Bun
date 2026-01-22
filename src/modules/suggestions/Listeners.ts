@@ -1,5 +1,5 @@
 import { getEventBus, TOPICS, type AppEvent } from "../../lib/events";
-import { getTagSuggestionService } from "./index";
+import { getContentTagSuggestionService } from "./index";
 import type { Content } from "../contents/ContentService";
 import type { UserTag } from "../tags/TagService";
 
@@ -9,7 +9,7 @@ import type { UserTag } from "../tags/TagService";
  */
 export const initSuggestionListeners = () => {
   const eventBus = getEventBus();
-  const suggestionService = getTagSuggestionService();
+  const suggestionService = getContentTagSuggestionService();
 
   // Handle Content Created -> Generate Suggestions
   eventBus.subscribe(TOPICS.CONTENT.CREATED, async (event: AppEvent<Content>) => {

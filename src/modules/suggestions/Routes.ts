@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getTagSuggestionService } from "./index";
+import { getContentTagSuggestionService } from "./index";
 import { getTagService } from "../tags";
 import { getContentService } from "../contents";
 import { verifyJwt } from "../../lib/jwt";
@@ -45,7 +45,7 @@ suggestionRouter.use("*", async (c, next) => {
 // GET Suggestions for Content
 suggestionRouter.get("/content/:contentId", async (c) => {
   const contentId = c.req.param("contentId");
-  const suggestionService = getTagSuggestionService();
+  const suggestionService = getContentTagSuggestionService();
 
   const result = await suggestionService.getSuggestionsForContent(contentId);
   return c.json(result);
@@ -57,7 +57,7 @@ suggestionRouter.post("/content/:id/regenerate", async (c) => {
   const user = c.get("user");
   
   const contentService = getContentService();
-  const suggestionService = getTagSuggestionService();
+  const suggestionService = getContentTagSuggestionService();
 
   const content = await contentService.getContentById(contentId);
   if (!content) {
@@ -90,7 +90,7 @@ suggestionRouter.post("/tags/relearn", async (c) => {
   }
 
   const tagService = getTagService();
-  const suggestionService = getTagSuggestionService();
+  const suggestionService = getContentTagSuggestionService();
 
   // Fetch tags to get semantic string
   const tags = await tagService.getTagsByIds(tagIds, user.id);
