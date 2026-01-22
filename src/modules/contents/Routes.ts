@@ -56,6 +56,28 @@ contentRouter.post("/", async (c) => {
       },
       c.executionCtx,
     );
+
+    // If tags are provided, link them
+    if (
+      result &&
+      data.tagIds &&
+      Array.isArray(data.tagIds) &&
+      data.tagIds.length > 0
+    ) {
+      const contentTagService = getContentTagService();
+      try {
+        await contentTagService.addTagsToContent({
+          contentId: result.id,
+          tagIds: data.tagIds,
+          userId: user.id,
+        });
+      } catch (tagError) {
+        console.error("Failed to link tags during content creation:", tagError);
+        // We don't fail the request, just log it.
+        // The content was created successfully.
+      }
+    }
+
     return c.json(result, 201);
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400);

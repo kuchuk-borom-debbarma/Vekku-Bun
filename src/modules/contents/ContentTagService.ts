@@ -5,6 +5,8 @@ export type ContentTag = {
   contentId: string;
   tagId: string;
   createdAt: Date;
+  name: string;
+  semantic: string;
 };
 
 export interface IContentTagService {

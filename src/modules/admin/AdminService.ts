@@ -60,9 +60,9 @@ export class AdminServiceImpl implements IAdminService {
     const [tagCount] = await db.select({ count: count() }).from(schema.userTags);
     
     const stats = {
-      users: userCount.count,
-      contents: contentCount.count,
-      tags: tagCount.count,
+      users: userCount?.count ?? 0,
+      contents: contentCount?.count ?? 0,
+      tags: tagCount?.count ?? 0,
     };
 
     await CacheServiceUpstash.set(cacheKey, stats, 60); // Cache for 60 seconds

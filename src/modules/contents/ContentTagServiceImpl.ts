@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../../db";
-import { contentTags } from "../../db/schema";
+import { contentTags, userTags } from "../../db/schema";
 import type { ChunkPaginationData } from "../../lib/pagination";
 import { generateUUID } from "../../lib/uuid";
 import type { ContentTag, IContentTagService } from "./ContentTagService";
@@ -67,8 +67,16 @@ export class ContentTagServiceImpl implements IContentTagService {
   }): Promise<ContentTag | null> {
     const db = getDb();
     const result = await db
-      .select()
+      .select({
+        id: contentTags.id,
+        contentId: contentTags.contentId,
+        tagId: contentTags.tagId,
+        createdAt: contentTags.createdAt,
+        name: userTags.name,
+        semantic: userTags.semantic,
+      })
       .from(contentTags)
+      .leftJoin(userTags, eq(contentTags.tagId, userTags.id))
       .where(
         and(
           eq(contentTags.contentId, data.contentId),
@@ -86,6 +94,8 @@ export class ContentTagServiceImpl implements IContentTagService {
       contentId: tag.contentId,
       tagId: tag.tagId,
       createdAt: tag.createdAt,
+      name: tag.name ?? "",
+      semantic: tag.semantic ?? "",
     };
   }
 
@@ -151,8 +161,16 @@ export class ContentTagServiceImpl implements IContentTagService {
     let pageData: ContentTag[] = [];
     if (pageIds.length > 0) {
       const rows = await db
-        .select()
+        .select({
+          id: contentTags.id,
+          contentId: contentTags.contentId,
+          tagId: contentTags.tagId,
+          createdAt: contentTags.createdAt,
+          name: userTags.name,
+          semantic: userTags.semantic,
+        })
         .from(contentTags)
+        .leftJoin(userTags, eq(contentTags.tagId, userTags.id))
         .where(inArray(contentTags.id, pageIds))
         .orderBy(desc(contentTags.createdAt), desc(contentTags.id));
 
@@ -161,6 +179,8 @@ export class ContentTagServiceImpl implements IContentTagService {
         contentId: tag.contentId,
         tagId: tag.tagId,
         createdAt: tag.createdAt,
+        name: tag.name ?? "",
+        semantic: tag.semantic ?? "",
       }));
     }
 

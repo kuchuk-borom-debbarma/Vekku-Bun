@@ -120,7 +120,7 @@ export class TagServiceImpl implements ITagService {
       const trimmed = data.semantic.trim();
       if (trimmed.length === 0) {
         // Fallback: Use new name if provided, otherwise existing name
-        const fallbackName = data.name || currentTag.name;
+        const fallbackName = data.name || (currentTag ? currentTag.name : "");
         toUpdate.semantic = normalize(fallbackName);
       } else {
         toUpdate.semantic = normalize(data.semantic);
