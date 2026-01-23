@@ -117,4 +117,19 @@ suggestionRouter.post("/tags/relearn", async (c) => {
   });
 });
 
+// Extract Keywords (KeyBERT)
+suggestionRouter.post("/extract", async (c) => {
+  const { text } = await c.req.json();
+  if (!text) return c.json({ error: "Text is required" }, 400);
+
+  const suggestionService = getContentTagSuggestionService();
+  
+  try {
+    const keywords = await suggestionService.extractKeywords(text);
+    return c.json({ keywords });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 export { suggestionRouter };

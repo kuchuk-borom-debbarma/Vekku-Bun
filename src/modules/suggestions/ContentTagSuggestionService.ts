@@ -29,4 +29,6 @@ export interface IContentTagSuggestionService {
     contentId: string,
     userId: string,
   ): Promise<ContentTagSuggestion[]>;
+
+  extractKeywords(content: string): Promise<string[]>;
 }

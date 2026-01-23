@@ -12,8 +12,57 @@ import type {
   ContentTagSuggestion,
 } from "./ContentTagSuggestionService";
 import { CacheServiceUpstash } from "../../lib/cache";
+import { calculateKeywordLimit, extractCandidates } from "../../lib/keywords";
+
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  let dotProduct = 0;
+  let magnitudeA = 0;
+  let magnitudeB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    magnitudeA += vecA[i] * vecA[i];
+    magnitudeB += vecB[i] * vecB[i];
+  }
+  return dotProduct / (Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB));
+}
 
 export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
+  async extractKeywords(content: string): Promise<string[]> {
+    const limit = calculateKeywordLimit(content);
+    // Pre-filter candidates by TF to save API calls (max 50)
+    const candidates = extractCandidates(content, [1, 2], 50);
+    
+    if (candidates.length === 0) return [];
+
+    const embedder = getEmbeddingService();
+    
+    // Batch Embed: [Content, ...Candidates]
+    // Note: Cloudflare might limit batch size. 50 is usually safe.
+    const inputs = [content, ...candidates];
+    let embeddings: number[][];
+    
+    try {
+      embeddings = await embedder.generateEmbeddings(inputs);
+    } catch (e) {
+      console.error("Failed to generate embeddings for keywords:", e);
+      return [];
+    }
+
+    const docVector = embeddings[0];
+    const candidateVectors = embeddings.slice(1);
+
+    const scored = candidates.map((word, i) => ({
+      word,
+      score: cosineSimilarity(docVector, candidateVectors[i])
+    }));
+
+    // Sort by Similarity (Desc) and take top 'limit'
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(s => s.word);
+  }
+
   async ensureConceptExists(semantic: string): Promise<string> {
     const db = getDb();
     const normalized = normalize(semantic);

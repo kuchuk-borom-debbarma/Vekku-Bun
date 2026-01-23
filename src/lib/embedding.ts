@@ -1,5 +1,6 @@
 export interface IEmbeddingService {
   generateEmbedding(text: string): Promise<number[]>;
+  generateEmbeddings(texts: string[]): Promise<number[][]>;
 }
 
 let embeddingConfig: { accountId?: string; apiKey?: string; model?: string } = {};
@@ -14,20 +15,27 @@ export const setEmbeddingConfig = (config: {
 
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
+    return (await localEmbeddingService.generateEmbeddings([text]))[0];
+  },
+  generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
     console.warn(
-      `[Embedding] WARNING: Using Local Dummy Embedding Service. Config Missing: AccountID=${!!embeddingConfig.accountId}, APIKey=${!!embeddingConfig.apiKey}`
+      `[Embedding] WARNING: Using Local Dummy Embedding Service for ${texts.length} inputs.`
     );
-    // Return a valid non-zero vector of dimension 1024 to match DB schema (bge-m3).
-    // Zero vectors cause "division by zero" errors in pgvector cosine distance calculations.
-    // We set the first element to 1 to ensure magnitude is 1.
-    const vec = new Array(1024).fill(0);
-    vec[0] = 1;
-    return vec;
+    // Return valid non-zero vectors of dimension 1024
+    return texts.map(() => {
+      const vec = new Array(1024).fill(0);
+      vec[0] = 1;
+      return vec;
+    });
   },
 };
 
 const cloudflareEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
+    const results = await cloudflareEmbeddingService.generateEmbeddings([text]);
+    return results[0];
+  },
+  generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
     const accountId = embeddingConfig.accountId;
     const apiKey = embeddingConfig.apiKey;
     const model = embeddingConfig.model || "@cf/baai/bge-small-en-v1.5";
@@ -39,7 +47,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
     }
 
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-    console.log(`[Embedding] Calling Cloudflare AI: ${url}`);
+    console.log(`[Embedding] Calling Cloudflare AI for ${texts.length} texts: ${url}`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -48,7 +56,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        text: [text],
+        text: texts,
         pooling: "cls", // Recommended for better accuracy
       }),
     });
@@ -79,12 +87,7 @@ const cloudflareEmbeddingService: IEmbeddingService = {
       );
     }
 
-    const embedding = json.result.data[0];
-    if (!embedding) {
-      throw new Error("Failed to generate embedding: Empty data array");
-    }
-
-    return embedding;
+    return json.result.data;
   },
 };
 
