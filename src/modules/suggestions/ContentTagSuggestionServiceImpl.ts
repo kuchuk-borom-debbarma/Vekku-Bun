@@ -232,7 +232,9 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
           }
         } else {
           groupedPotentials.push({
-            ...candidate,
+            keyword: candidate.word,
+            score: candidate.score,
+            embedding: candidate.embedding,
             variants: []
           });
         }
