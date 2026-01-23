@@ -115,4 +115,17 @@ export class AuthServiceImpl implements IAuthService {
 
     return existing.length > 0;
   }
+
+  async getUserById(userId: string): Promise<{ id: string; name: string; role: string } | null> {
+    const users = await this.db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.id, userId))
+      .limit(1);
+
+    const u = users[0];
+    if (!u || u.isDeleted) return null;
+
+    return { id: u.id, name: u.name, role: u.role };
+  }
 }

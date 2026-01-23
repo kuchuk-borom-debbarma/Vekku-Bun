@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getHasher } from "../../lib/hashing";
 import { getAuthService } from "./index";
-import { generateSignupToken, verifySignupToken } from "../../lib/jwt";
+import { generateSignupToken, verifySignupToken, verifyJwt } from "../../lib/jwt";
 import { getNotificationService } from "../../lib/notification";
 
 type Bindings = {
@@ -110,6 +110,33 @@ authRouter.post("/refresh", async (c) => {
   } catch (err) {
     return c.json({ error: (err as Error).message }, 401);
   }
+});
+
+// 5. Get Current User (Me)
+authRouter.get("/me", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const payload = await verifyJwt(token);
+  if (!payload || !payload.sub) {
+    return c.json({ error: "Invalid token" }, 401);
+  }
+
+  const authService = getAuthService();
+  const user = await authService.getUserById(payload.sub as string);
+
+  if (!user) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  return c.json({ user });
 });
 
 export { authRouter };

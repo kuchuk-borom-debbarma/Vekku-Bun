@@ -23,4 +23,6 @@ export interface IAuthService {
   refreshToken(token: string): Promise<AuthUser>;
 
   checkUserExists(email: string): Promise<boolean>;
+
+  getUserById(userId: string): Promise<{ id: string; name: string; role: string } | null>;
 }
