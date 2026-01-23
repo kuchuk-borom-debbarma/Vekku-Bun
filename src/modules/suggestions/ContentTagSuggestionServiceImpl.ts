@@ -182,6 +182,8 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     const existingNames = new Set(existingSuggestions.map(s => normalize(s.name)));
     let filteredKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
 
+    let result: ContentSuggestions;
+
     if (filteredKeywords.length > 0 && (mode === "keywords" || mode === "both")) {
       // Semantic Collision Check:
       // For each keyword, check if user has ANY tag with distance < threshold
@@ -205,36 +207,60 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       const collidedWords = new Set(collisionChecks.filter(c => c.hasCollision).map(c => c.word));
       filteredKeywords = filteredKeywords.filter(k => !collidedWords.has(k.word));
 
-      // c) Internal Self-Deduplication:
-      // If "jvm" and "the jvm" are both in the list, they will collide with each other.
-      // Since filteredKeywords is already sorted by score (desc), we keep the first 
-      // occurrence of a concept and discard subsequent similar ones.
-      const uniquePotentials: typeof filteredKeywords = [];
+      // c) Internal Self-Grouping:
+      // Instead of discarding, we group "jvm" and "the jvm" together.
+      // Since filteredKeywords is already sorted by score (desc), the first 
+      // occurrence of a concept becomes the "Primary" keyword for that group.
+      const groupedPotentials: { 
+        keyword: string; 
+        score: number; 
+        embedding: number[];
+        variants: string[];
+      }[] = [];
+
       for (const candidate of filteredKeywords) {
-        const isDuplicate = uniquePotentials.some(existing => {
-          const sim = cosineSimilarity(candidate.embedding, existing.embedding);
+        const matchingGroup = groupedPotentials.find(group => {
+          const sim = cosineSimilarity(candidate.embedding, group.embedding);
           const dist = 1 - sim;
           return dist < KEYWORD_COLLISION_THRESHOLD;
         });
 
-        if (!isDuplicate) {
-          uniquePotentials.push(candidate);
+        if (matchingGroup) {
+          // Add to variants if not exactly the same string
+          if (candidate.word.toLowerCase() !== matchingGroup.keyword.toLowerCase()) {
+            matchingGroup.variants.push(candidate.word);
+          }
+        } else {
+          groupedPotentials.push({
+            ...candidate,
+            variants: []
+          });
         }
       }
-      filteredKeywords = uniquePotentials;
-    }
 
-    const result: ContentSuggestions = {
-      existing: existingSuggestions.map(s => ({
-        tagId: s.tagId,
-        name: s.name,
-        score: Number(s.score).toFixed(3)
-      })),
-      potential: filteredKeywords.map(k => ({
-        keyword: k.word,
-        score: (1 - k.score).toFixed(3) // Invert similarity to distance: lower is better
-      }))
-    };
+      result = {
+        existing: existingSuggestions.map(s => ({
+          tagId: s.tagId,
+          name: s.name,
+          score: Number(s.score).toFixed(3)
+        })),
+        potential: groupedPotentials.map(g => ({
+          keyword: g.keyword,
+          score: (1 - g.score).toFixed(3),
+          variants: g.variants
+        }))
+      };
+    } else {
+      // Fallback for when no keywords were filtered or mode is tags only
+      result = {
+        existing: existingSuggestions.map(s => ({
+          tagId: s.tagId,
+          name: s.name,
+          score: Number(s.score).toFixed(3)
+        })),
+        potential: []
+      };
+    }
 
     // 3. Cache results based on text hash
     // This allows same content to hit cache even before it's saved or across different content IDs

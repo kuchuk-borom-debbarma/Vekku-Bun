@@ -9,6 +9,7 @@ export type ExistingSuggestion = {
 export type PotentialSuggestion = {
   keyword: string;
   score: string;
+  variants: string[];
 };
 
 export type ContentSuggestions = {
