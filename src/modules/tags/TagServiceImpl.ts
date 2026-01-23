@@ -341,11 +341,11 @@ export class TagServiceImpl implements ITagService {
     const db = getDb();
 
     // ParadeDB BM25 Search
-    // We append '~' to each word in the query to enable fuzzy matching (typo tolerance)
+    // We append '~2' to allow for up to 2 edits (typos), catching 'jawe' -> 'java'
     const fuzzyQuery = query
       .trim()
       .split(/\s+/)
-      .map((word) => `${word}~`)
+      .map((word) => `${word}~2`)
       .join(" ");
 
     const rows = await db
