@@ -30,12 +30,20 @@ type Bindings = {
   WORKER?: string;
   GITHUB_URL?: string;
   GMAIL_URL?: string;
+  FRONTEND_URL?: string;
 };
 
 const createApp = (env: Bindings) => {
   const app = new Hono<{ Bindings: Bindings }>();
 
-  app.use("/api/*", cors());
+  app.use("/api/*", cors({
+    origin: env.FRONTEND_URL || "*",
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["Content-Length"],
+    maxAge: 600,
+    credentials: true,
+  }));
   app.use("/api/*", rateLimiter);
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
