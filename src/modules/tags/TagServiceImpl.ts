@@ -341,11 +341,18 @@ export class TagServiceImpl implements ITagService {
     const db = getDb();
 
     // ParadeDB BM25 Search
-    // We append '~2' to allow for up to 2 edits (typos), catching 'jawe' -> 'java'
+    // Dynamic Fuzziness:
+    // - Length <= 2: Exact match
+    // - Length === 3: Allow ~1 edit (moderate)
+    // - Length >= 4: Allow ~2 edits (aggressive, captures 'jawe'->'java', 'genuis'->'genius')
     const fuzzyQuery = query
       .trim()
       .split(/\s+/)
-      .map((word) => `${word}~2`)
+      .map((word) => {
+        if (word.length <= 2) return word;
+        if (word.length === 3) return `${word}~1`;
+        return `${word}~2`;
+      })
       .join(" ");
 
     const rows = await db
