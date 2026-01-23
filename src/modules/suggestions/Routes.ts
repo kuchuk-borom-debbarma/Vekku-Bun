@@ -105,39 +105,6 @@ suggestionRouter.post("/generate", async (c) => {
   return c.json(result);
 });
 
-// POST Relearn Tags (Generate Embeddings)
-suggestionRouter.post("/tags/relearn", async (c) => {
-  const { tagIds } = await c.req.json();
-  const user = c.get("user");
-
-  if (!Array.isArray(tagIds) || tagIds.length === 0) {
-    return c.json({ error: "Invalid tagIds array" }, 400);
-  }
-
-  const tagService = getTagService();
-  const suggestionService = getContentTagSuggestionService();
-
-  // Fetch tags to get semantic string
-  const tags = await tagService.getTagsByIds(tagIds, user.id);
-  
-  if (tags.length === 0) {
-    return c.json({ message: "No matching tags found to relearn" });
-  }
-
-  // Process in batch
-  const semantics = tags.map(t => t.semantic);
-  
-  try {
-    const conceptIds = await suggestionService.learnTags(semantics);
-    return c.json({ 
-      message: `Relearning complete. Processed ${conceptIds.length} concepts.`,
-      processedTags: tags.map(t => t.id)
-    });
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 500);
-  }
-});
-
 // Extract Keywords (KeyBERT)
 suggestionRouter.post("/extract", async (c) => {
   const { text } = await c.req.json();

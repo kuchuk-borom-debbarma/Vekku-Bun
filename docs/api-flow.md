@@ -138,18 +138,6 @@ graph TD
     J --> K[Return Results]
 ```
 
-### 2. Learn Tags (Manual Relearn)
-- **Endpoint:** `POST /api/suggestions/tags/relearn`
-- **Logic:** Forces vector generation for existing tags.
-- **Flow Chart:**
-```mermaid
-graph TD
-    A[Request: tagIds] --> B[Fetch semantic strings for IDs]
-    B --> C[Batch Generate Embeddings via Cloudflare AI]
-    C --> D[Update tag_embeddings table]
-    D --> E[Return Status]
-```
-
 ---
 
 ## Stats Module
