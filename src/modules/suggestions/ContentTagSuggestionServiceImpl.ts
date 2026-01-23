@@ -204,6 +204,24 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
       const collidedWords = new Set(collisionChecks.filter(c => c.hasCollision).map(c => c.word));
       filteredKeywords = filteredKeywords.filter(k => !collidedWords.has(k.word));
+
+      // c) Internal Self-Deduplication:
+      // If "jvm" and "the jvm" are both in the list, they will collide with each other.
+      // Since filteredKeywords is already sorted by score (desc), we keep the first 
+      // occurrence of a concept and discard subsequent similar ones.
+      const uniquePotentials: typeof filteredKeywords = [];
+      for (const candidate of filteredKeywords) {
+        const isDuplicate = uniquePotentials.some(existing => {
+          const sim = cosineSimilarity(candidate.embedding, existing.embedding);
+          const dist = 1 - sim;
+          return dist < KEYWORD_COLLISION_THRESHOLD;
+        });
+
+        if (!isDuplicate) {
+          uniquePotentials.push(candidate);
+        }
+      }
+      filteredKeywords = uniquePotentials;
     }
 
     const result: ContentSuggestions = {
