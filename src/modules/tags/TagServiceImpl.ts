@@ -340,28 +340,51 @@ export class TagServiceImpl implements ITagService {
     const { userId, query, limit = 10, offset = 0 } = data;
     const db = getDb();
 
-    // ParadeDB BM25 Search
-    // Safe Fuzziness:
-    // - Length <= 2: Exact match
-    // - Length > 2: (Term OR Term~) -> Ensures exact match works + Auto-Fuzzy
-    const fuzzyQuery = query
-      .trim()
-      .split(/\s+/)
-      .map((word) => (word.length <= 2 ? word : `(${word} OR ${word}~)`))
-      .join(" AND ");
+    if (!query.trim()) {
+      return {
+        data: [],
+        metadata: { nextChunkId: null, chunkSize: limit, chunkTotalItems: 0, limit, offset },
+      };
+    }
 
-    const rows = await db
-      .select()
-      .from(schema.userTags)
-      .where(
-        and(
-          eq(schema.userTags.userId, userId),
-          // Explicitly search name OR semantic to avoid table alias issues
-          sql`(${schema.userTags.name} @@@ ${fuzzyQuery} OR ${schema.userTags.semantic} @@@ ${fuzzyQuery})`,
-        ),
-      )
-      .limit(limit)
-      .offset(offset);
+    const words = query.trim().split(/\s+/);
+
+    /**
+     * Helper to build a ParadeDB term expression.
+     * We use raw SQL strings for the function calls because they require
+     * specific named parameter syntax (field => '...', value => '...')
+     */
+    const buildTerm = (word: string, field: "name" | "semantic") => {
+      const safeWord = word.replace(/'/g, "''");
+      const len = word.length;
+
+      if (len <= 2) {
+        return sql.raw(`paradedb.term(field => '${field}', value => '${safeWord}')`);
+      }
+      
+      // 3-tier fuzzy logic
+      const distance = len === 3 ? 1 : 2;
+      return sql.raw(
+        `paradedb.fuzzy_term(field => '${field}', value => '${safeWord}', distance => ${distance})`
+      );
+    };
+
+    // Construct conditions for each word: (name @@@ fuzzy(w) OR semantic @@@ fuzzy(w))
+    const wordConditions = words.map((word) => {
+      const nameFuzzy = buildTerm(word, "name");
+      const semanticFuzzy = buildTerm(word, "semantic");
+      return sql`(${schema.userTags.name} @@@ ${nameFuzzy} OR ${schema.userTags.semantic} @@@ ${semanticFuzzy})`;
+    });
+
+    const finalSearchCondition = and(
+      eq(schema.userTags.userId, userId),
+      ...wordConditions
+    );
+
+    const [rows, totalResult] = await Promise.all([
+      db.select().from(schema.userTags).where(finalSearchCondition).limit(limit).offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(schema.userTags).where(finalSearchCondition),
+    ]);
 
     const pageData = rows.map((row) => ({
       id: row.id,
@@ -372,24 +395,14 @@ export class TagServiceImpl implements ITagService {
       updatedAt: row.updatedAt,
     }));
 
-    // For total search results count
-    const totalResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(schema.userTags)
-      .where(
-        and(
-          eq(schema.userTags.userId, userId),
-          sql`(${schema.userTags.name} @@@ ${fuzzyQuery} OR ${schema.userTags.semantic} @@@ ${fuzzyQuery})`,
-        ),
-      );
-    const totalFound = totalResult[0]?.count || 0;
+    const totalFound = Number(totalResult[0]?.count || 0);
 
     return {
       data: pageData,
       metadata: {
-        nextChunkId: null, // Search uses offset, not ID cursors
-        chunkSize: limit, // In search context, chunk size is effectively the limit
-        chunkTotalItems: totalFound, // Total found across all pages
+        nextChunkId: null,
+        chunkSize: limit,
+        chunkTotalItems: totalFound,
         limit,
         offset,
       },
