@@ -2,15 +2,23 @@
 - [x] **Refactor: Hard Deletes**
     - [x] Remove `is_deleted` and `deleted_at` columns from all tables.
     - [x] Implement hard delete logic for Tags, Contents, Suggestions, and Embeddings.
+- [x] **Optimized Counters**
+    - [x] Implement JSONB metadata counters in `users` table to avoid full table scans.
+- [x] **On-Demand AI Suggestions**
+    - [x] Implement unified generation endpoint with KeyBERT + Vector search.
+    - [x] Transition to Redis-only caching for suggestions.
+    - [x] Implement strict AI-specific rate limiting.
+- [ ] **Advanced Filtering & Search**
+    - [ ] Implement **Bloom Filter** for fast membership checks (e.g., checking if a tag name already exists before DB query).
 - [ ] **Refactor: Transactions**
     - [ ] Wrap multi-step operations (e.g., Tag Creation, Content Update) in DB transactions for atomicity.
 - [ ] **Async Operations**
-    - [ ] Introduce Async operation for background tasks (e.g., tag suggestions).
+    - [x] Introduce Async operation for background tasks (e.g. tag learning).
 - [ ] **Adaptive Semantic Learning**
     - [ ] Update `user_tags` schema (add `context_embedding`, `usage_count`, `last_learned_at`)
     - [ ] Implement `reinforceTag` in `TagService` (Centroid-based Moving Average)
     - [ ] Update `TagSuggestionService` to use Hybrid Search (Global vs. User Context)
     - [ ] Integrate "Passive Gap Filling" trigger in Content Tagging flow
 - [ ] **Rate Limiting & Security**
-    - [ ] Implement IP-based rate limiting for Sign Up.
-    - [ ] Implement user-based rate limiting/cooldown for AI operations (e.g., regenerate suggestions).
+    - [x] Implement IP-based rate limiting for Sign Up.
+    - [x] Implement user-based rate limiting/cooldown for AI operations.
