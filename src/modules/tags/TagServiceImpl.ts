@@ -299,9 +299,12 @@ export class TagServiceImpl implements ITagService {
       // Invalidate Caches
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", data.userId, "*");
       const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", data.userId, "*");
+      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, "*");
+      
       await Promise.all([
         CacheServiceUpstash.delByPattern(listCachePattern),
         CacheServiceUpstash.delByPattern(suggestionCachePattern),
+        CacheServiceUpstash.delByPattern(contentTagsCachePattern),
       ]);
 
       // Publish Event
