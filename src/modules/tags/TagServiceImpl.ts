@@ -46,16 +46,18 @@ export class TagServiceImpl implements ITagService {
 
     const tag = result[0];
     if (tag) {
-      // Atomic increment of tagCount
-      await db.execute(sql`
-        UPDATE users 
-        SET metadata = jsonb_set(
-          metadata, 
-          '{tagCount}', 
-          (COALESCE((metadata->>'tagCount')::int, 0) + 1)::text::jsonb
-        )
-        WHERE id = ${data.userId}
-      `);
+      // Atomic increment of tagCount ONLY if it was an insert (updatedAt is null)
+      if (!tag.updatedAt) {
+        await db.execute(sql`
+          UPDATE users 
+          SET metadata = jsonb_set(
+            metadata, 
+            '{tagCount}', 
+            (COALESCE((metadata->>'tagCount')::int, 0) + 1)::text::jsonb
+          )
+          WHERE id = ${data.userId}
+        `);
+      }
 
       console.log(`[TagService] Tag Created: ${tag.name} (${tag.id})`);
       const userTag = {
@@ -100,6 +102,77 @@ export class TagServiceImpl implements ITagService {
       return userTag;
     }
     return null;
+  }
+
+  async createTags(
+    data: {
+      name: string;
+      semantic: string;
+      userId: string;
+    }[],
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<UserTag[]> {
+    if (data.length === 0) return [];
+    
+    const db = getDb();
+    const userId = data[0].userId;
+
+    const values = data.map(d => ({
+      id: generateUUID(),
+      userId: d.userId,
+      name: d.name,
+      semantic: normalize(d.semantic || d.name),
+    }));
+
+    const results = await db
+      .insert(schema.userTags)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [schema.userTags.userId, schema.userTags.name],
+        set: {
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    if (results.length > 0) {
+      // Atomic increment of tagCount by the number of NEWLY inserted tags
+      const newTagsCount = results.filter(r => !r.updatedAt).length;
+      
+      if (newTagsCount > 0) {
+        await db.execute(sql`
+          UPDATE users 
+          SET metadata = jsonb_set(
+            metadata, 
+            '{tagCount}', 
+            (COALESCE((metadata->>'tagCount')::int, 0) + ${newTagsCount})::text::jsonb
+          )
+          WHERE id = ${userId}
+        `);
+      }
+
+      // Invalidate Caches
+      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", userId, "*");
+      await CacheServiceUpstash.delByPattern(listCachePattern);
+
+      // Publish Events
+      for (const tag of results) {
+        try {
+          getEventBus().publish(TOPICS.TAG.CREATED, tag, userId, ctx);
+        } catch (e) {
+          console.error("Failed to publish tag.created event:", e);
+        }
+      }
+    }
+
+    return results.map(tag => ({
+      id: tag.id,
+      name: tag.name,
+      semantic: tag.semantic,
+      userId: tag.userId,
+      createdAt: tag.createdAt,
+      updatedAt: tag.updatedAt,
+    }));
   }
 
   async updateTag(

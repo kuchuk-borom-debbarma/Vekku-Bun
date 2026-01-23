@@ -20,6 +20,15 @@ export interface IContentTagService {
   }): Promise<boolean>;
 
   /**
+   * Create (if missing) and link keywords to content in bulk.
+   */
+  addKeywordsToContent(data: {
+    keywords: string[];
+    contentId: string;
+    userId: string;
+  }, ctx?: { waitUntil: (promise: Promise<any>) => void }): Promise<boolean>;
+
+  /**
    * remove tags from content. Will be ignored if tags are not linked to content already.
    */
   removeTagsFromContent(data: {

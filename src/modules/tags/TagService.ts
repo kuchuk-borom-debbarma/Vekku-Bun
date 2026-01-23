@@ -19,6 +19,15 @@ export interface ITagService {
     ctx?: { waitUntil: (promise: Promise<any>) => void },
   ): Promise<UserTag | null>;
 
+  createTags(
+    data: {
+      name: string;
+      semantic: string;
+      userId: string;
+    }[],
+    ctx?: { waitUntil: (promise: Promise<any>) => void },
+  ): Promise<UserTag[]>;
+
   updateTag(
     data: {
       id: string;

@@ -152,3 +152,22 @@ export const contentTagSuggestions = pgTable(
     index("content_tag_suggestions_tag_idx").on(table.tagId),
   ],
 );
+
+export const contentKeywordSuggestions = pgTable(
+  "content_keyword_suggestions",
+  {
+    id: varchar({ length: 255 }).primaryKey(),
+    contentId: varchar("fk_content_id", { length: 255 })
+      .notNull()
+      .references(() => contents.id, { onDelete: "cascade" }),
+    userId: varchar("fk_user_id", { length: 255 })
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    keyword: text().notNull(),
+    score: text().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("content_keyword_suggestions_content_idx").on(table.contentId),
+  ],
+);

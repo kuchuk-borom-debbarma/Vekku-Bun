@@ -5,16 +5,24 @@ import type { ChunkPaginationData } from "../../lib/pagination";
 import { generateUUID } from "../../lib/uuid";
 import type { ContentTag, IContentTagService } from "./ContentTagService";
 import { CacheServiceUpstash } from "../../lib/cache";
+import type { ITagService } from "../tags/TagService";
+import type { IContentTagSuggestionService } from "../suggestions/ContentTagSuggestionService";
 
 const SEGMENT_SIZE = 100;
 
 export class ContentTagServiceImpl implements IContentTagService {
+  constructor(
+    private tagService: ITagService,
+    private suggestionService: IContentTagSuggestionService,
+  ) {}
+
   async addTagsToContent(data: {
     tagIds: string[];
     contentId: string;
     userId: string;
   }): Promise<boolean> {
     try {
+      if (data.tagIds.length === 0) return true;
       const db = getDb();
 
       const values = data.tagIds.map((tag) => {
@@ -38,6 +46,52 @@ export class ContentTagServiceImpl implements IContentTagService {
       console.error(
         `Something went wrong when attempting to link tag and content: ${err}`,
       );
+      return false;
+    }
+  }
+
+  async addKeywordsToContent(
+    data: {
+      keywords: string[];
+      contentId: string;
+      userId: string;
+    },
+    ctx?: { waitUntil: (promise: Promise<any>) => void }
+  ): Promise<boolean> {
+    try {
+      if (data.keywords.length === 0) return true;
+
+      // 1. Create Tags from Keywords
+      const tagData = data.keywords.map(kw => ({
+        name: kw,
+        semantic: kw,
+        userId: data.userId
+      }));
+
+      const tags = await this.tagService.createTags(tagData, ctx);
+      const tagIds = tags.map(t => t.id);
+
+      // 2. Link Tags to Content
+      await this.addTagsToContent({
+        tagIds,
+        contentId: data.contentId,
+        userId: data.userId
+      });
+
+      // 3. Batch Learn Semantic Concepts (Background)
+      const learningPromise = this.suggestionService.learnTags(tags.map(t => t.semantic));
+      
+      if (ctx?.waitUntil) {
+        ctx.waitUntil(learningPromise);
+      } else {
+        learningPromise.catch(e => {
+          console.error("[ContentTagService] Failed to learn tags in background:", e);
+        });
+      }
+
+      return true;
+    } catch (err) {
+      console.error(`Error adding keywords to content: ${err}`);
       return false;
     }
   }

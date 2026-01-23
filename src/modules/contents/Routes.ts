@@ -186,19 +186,34 @@ contentRouter.post("/:id/tags", async (c) => {
   }
 
   const success = await contentTagService.addTagsToContent({
-    contentId,
     tagIds,
+    contentId: id,
     userId: user.id,
   });
 
-  if (!success) {
-    return c.json({ error: "Failed to add tags" }, 500);
-  }
-
-  return c.json({ success: true });
+  return c.json({ success });
 });
 
-// Remove Tags from Content
+// Add Potential Tags (Keywords) to Content in Bulk
+contentRouter.post("/:id/potential", async (c) => {
+  const id = c.req.param("id");
+  const { keywords } = await c.req.json();
+  const user = c.get("user");
+
+  if (!Array.isArray(keywords)) {
+    return c.json({ error: "Invalid keywords array" }, 400);
+  }
+
+  const contentTagService = getContentTagService();
+  const success = await contentTagService.addKeywordsToContent({
+    keywords,
+    contentId: id,
+    userId: user.id,
+  }, c.executionCtx);
+
+  return c.json({ success });
+});
+
 contentRouter.delete("/:id/tags", async (c) => {
   const contentId = c.req.param("id");
   const { tagIds } = await c.req.json();
