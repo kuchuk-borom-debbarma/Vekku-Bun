@@ -184,29 +184,27 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       }))
     };
 
-    // 3. Cache results
-    // If contentId exists, use it as the primary key.
-    // If not (e.g. creating content), use a hash of the text to prevent repeat 429s for same input.
-    const anchor = data.contentId || `hash:${await this.hashText(data.content)}`;
-    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, data.userId, anchor);
+    // 3. Cache results based on text hash
+    // This allows same content to hit cache even before it's saved or across different content IDs
+    const textHash = await this.hashText(data.content);
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, data.userId, `hash:${textHash}`);
     
-    // Cache for 24 hours if it's a real content ID, or 10 minutes if it's just a text hash
-    const ttl = data.contentId ? 60 * 60 * 24 : 60 * 10;
-    await CacheServiceUpstash.set(cacheKey, result, ttl);
+    // AI results are expensive, cache for 24 hours
+    await CacheServiceUpstash.set(cacheKey, result, 60 * 60 * 24);
 
     return result;
   }
 
   async getSuggestionsForContent(
-    contentId: string,
+    contentId: string | undefined, // Ignored in favor of text hash for better cache sharing
     userId: string,
     mode: "tags" | "keywords" | "both" = "both",
     text?: string,
   ): Promise<ContentSuggestions | null> {
-    const anchor = contentId || (text ? `hash:${await this.hashText(text)}` : null);
-    if (!anchor) return null;
+    if (!text) return null;
 
-    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, userId, anchor);
+    const textHash = await this.hashText(text);
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, userId, `hash:${textHash}`);
     return await CacheServiceUpstash.get<ContentSuggestions>(cacheKey);
   }
 

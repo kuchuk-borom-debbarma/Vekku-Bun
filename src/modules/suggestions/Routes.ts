@@ -64,27 +64,9 @@ suggestionRouter.post("/generate", async (c) => {
   const suggestionService = getContentTagSuggestionService();
   const contentService = getContentService();
 
-  // 1. Check CACHE first (either by ID or Text Hash)
-  const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, text);
-  if (cached) {
-    console.log(`[Suggestions] Cache HIT for ${mode} (ID: ${contentId || 'TextHash'})`);
-    return c.json(cached);
-  }
-
-  // 2. Cache Miss -> Enforce AI Rate Limit
-  const limiter = getAiRatelimit();
-  if (limiter) {
-    // Unique identifier per user + mode ensures separate 3/min limits
-    const identifier = `${user.id}:${mode}`;
-    const { success } = await limiter.limit(identifier);
-    if (!success) {
-      return c.json({ error: `AI rate limit exceeded for ${mode}. Please wait a minute.` }, 429);
-    }
-  }
-
-  // 3. Resolve Content Body
+  // 1. Resolve Content Body
   let body = text;
-  if (contentId) {
+  if (contentId && !body) {
     const content = await contentService.getContentById(contentId);
     if (!content) return c.json({ error: "Content not found" }, 404);
     if (content.userId !== user.id) return c.json({ error: "Unauthorized" }, 401);
@@ -92,6 +74,24 @@ suggestionRouter.post("/generate", async (c) => {
   }
 
   if (!body) return c.json({ error: "Text or Content ID is required" }, 400);
+
+  // 2. Check CACHE first (always by Text Hash now for unified hits)
+  const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, body);
+  if (cached) {
+    console.log(`[Suggestions] Cache HIT for ${mode} (Anchor: TextHash)`);
+    return c.json(cached);
+  }
+
+  // 3. Cache Miss -> Enforce AI Rate Limit (Independent per mode)
+  const limiter = getAiRatelimit();
+  if (limiter) {
+    // Unique identifier per user + mode ensures separate 3/min limits
+    const identifier = `${user.id}:${mode}`;
+    const { success } = await limiter.limit(identifier);
+    if (!success) {
+      return c.json({ error: `AI rate limit exceeded for ${mode}. Please wait a minute.` }, 429);
+    } 
+  }
 
   // 4. Generate & Cache
   const result = await suggestionService.createSuggestionsForContent({
