@@ -40,35 +40,14 @@ tagRouter.use("*", async (c, next) => {
   await next();
 });
 
-// Create Tag
+// Create Tags (Batch)
 tagRouter.post("/", async (c) => {
-  const data = await c.req.json();
-  const user = c.get("user");
-  const tagService = getTagService();
-
-  try {
-    const result = await tagService.createTag(
-      {
-        name: data.name,
-        semantic: data.semantic,
-        userId: user.id,
-      },
-      c.executionCtx,
-    );
-    return c.json(result, 201);
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 400);
-  }
-});
-
-// Create Tags in Batch
-tagRouter.post("/batch", async (c) => {
   const { tags } = await c.req.json();
   const user = c.get("user");
   const tagService = getTagService();
 
   if (!Array.isArray(tags)) {
-    return c.json({ error: "Invalid tags array" }, 400);
+    return c.json({ error: "Invalid input: 'tags' must be an array" }, 400);
   }
 
   try {
