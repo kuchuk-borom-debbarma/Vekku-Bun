@@ -49,8 +49,14 @@ suggestionRouter.get("/content/:contentId", async (c) => {
   const mode = (c.req.query("mode") as "tags" | "keywords" | "both") || "both";
   const user = c.get("user");
   const suggestionService = getContentTagSuggestionService();
+  const contentService = getContentService();
 
-  const result = await suggestionService.getSuggestionsForContent(contentId, user.id, mode);
+  // We need the body to get the hash for cache lookup
+  const content = await contentService.getContentById(contentId);
+  if (!content) return c.json({ error: "Content not found" }, 404);
+  if (content.userId !== user.id) return c.json({ error: "Unauthorized" }, 401);
+
+  const result = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, content.body);
   if (!result) return c.json({ existing: [], potential: [] });
   return c.json(result);
 });

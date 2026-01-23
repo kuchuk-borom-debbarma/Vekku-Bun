@@ -485,48 +485,105 @@ async function deleteContent(id) {
 
 async function fetchSuggestions(contentId) {
     try {
-        const res = await apiCall(`/suggestions/content/${contentId}`);
-        renderSuggestions(res);
+        const res = await apiCall(`/suggestions/generate`, 'POST', { contentId });
+        renderSuggestions(res, contentId);
     } catch (e) {}
 }
 
 async function regenerateSuggestions(contentId) {
-    if(!confirm('Regenerate suggestions for this content?')) return;
+    if(!confirm('Refresh suggestions for this content?')) return;
     try {
-        const res = await apiCall(`/suggestions/content/${contentId}/regenerate`, 'POST');
-        alert('Suggestions regenerated!');
-        renderSuggestions(res.data);
+        const res = await apiCall(`/suggestions/generate`, 'POST', { contentId });
+        alert('Suggestions refreshed (from cache if available)!');
+        renderSuggestions(res, contentId);
     } catch (e) {}
 }
 
-function renderSuggestions(suggestions) {
+function renderSuggestions(data, contentId) {
     const area = document.getElementById('suggestionsArea');
     const list = document.getElementById('suggestionsList');
     list.innerHTML = '';
     
-    if (!suggestions || suggestions.length === 0) {
+    const existing = data.existing || [];
+    const potential = data.potential || [];
+
+    if (existing.length === 0 && potential.length === 0) {
         list.innerHTML = '<li>No suggestions found.</li>';
     } else {
-        suggestions.forEach(s => {
-            const li = document.createElement('li');
-            li.style.borderBottom = '1px solid #bae6fd';
-            li.style.padding = '8px 0';
-            
-            // s.tagId, s.name, s.score are returned by backend
-            const tagName = s.name || 'Unknown Tag';
-            const score = parseFloat(s.score).toFixed(4); // Format score
-            
-            li.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 500; color: #0c4a6e;">${tagName}</span>
-                    <span style="font-family: monospace; font-size: 0.85em; background: #fff; padding: 2px 6px; border-radius: 4px; color: #0284c7;">
-                        Score: ${score}
-                    </span>
-                </div>
-            `;
-            list.appendChild(li);
-        });
+        // --- Render Existing Tags ---
+        if (existing.length > 0) {
+            const head = document.createElement('li');
+            head.innerHTML = '<strong style="color: #0369a1; font-size: 0.9em; text-transform: uppercase;">Existing Tags</strong>';
+            head.style.borderBottom = '1px solid #bae6fd';
+            head.style.padding = '10px 0 5px 0';
+            list.appendChild(head);
+
+            existing.forEach(s => {
+                const li = document.createElement('li');
+                li.style.borderBottom = '1px solid #f1f5f9';
+                li.style.padding = '8px 0';
+                li.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 500; color: #0c4a6e;">${s.name}</span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                             <span style="font-family: monospace; font-size: 0.75em; color: #64748b;">Dist: ${s.score}</span>
+                             <button style="width:auto; padding: 2px 8px; font-size: 0.7em; background-color: #0ea5e9;" onclick="addContentTagById('${contentId}', '${s.tagId}')">Add</button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // --- Render Potential New Tags ---
+        if (potential.length > 0) {
+            const head = document.createElement('li');
+            head.innerHTML = '<strong style="color: #6d28d9; font-size: 0.9em; text-transform: uppercase; margin-top: 15px; display: block;">New Tag Suggestions</strong>';
+            head.style.borderBottom = '1px solid #ddd6fe';
+            head.style.padding = '10px 0 5px 0';
+            list.appendChild(head);
+
+            potential.forEach(p => {
+                const li = document.createElement('li');
+                li.style.borderBottom = '1px solid #f1f5f9';
+                li.style.padding = '8px 0';
+                
+                const variants = p.variants && p.variants.length > 0 ? `<div style="font-size: 0.7em; color: #94a3b8;">Variants: ${p.variants.join(', ')}</div>` : '';
+                
+                li.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-weight: 500; color: #4c1d95;">${p.keyword}</span>
+                            ${variants}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                             <span style="font-family: monospace; font-size: 0.75em; color: #64748b;">Score: ${p.score}</span>
+                             <button style="width:auto; padding: 2px 8px; font-size: 0.7em; background-color: #8b5cf6;" onclick="applyPotentialTag('${contentId}', '${p.keyword}')">Create & Add</button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
     }
     
     area.classList.remove('hidden');
+}
+
+async function addContentTagById(contentId, tagId) {
+    try {
+        await apiCall(`/content/${contentId}/tags`, 'POST', { tagIds: [tagId] });
+        alert('Tag added!');
+    } catch (e) {}
+}
+
+async function applyPotentialTag(contentId, keyword) {
+    try {
+        // 1. Create the tag
+        const tag = await apiCall('/tag', 'POST', { name: keyword, semantic: keyword });
+        // 2. Link it to content
+        await apiCall(`/content/${contentId}/tags`, 'POST', { tagIds: [tag.id] });
+        alert(`Tag "${keyword}" created and added!`);
+        fetchTags(); // Refresh tag list
+    } catch (e) {}
 }
