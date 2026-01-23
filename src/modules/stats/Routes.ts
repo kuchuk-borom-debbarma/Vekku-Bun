@@ -10,6 +10,8 @@ statsRouter.get("/", async (c) => {
   const authHeader = c.req.header("Authorization");
   if (!authHeader) return c.json({ error: "Unauthorized" }, 401);
   const token = authHeader.split(" ")[1];
+  if (!token) return c.json({ error: "Unauthorized" }, 401);
+  
   const payload = await verifyJwt(token);
   if (!payload || !payload.sub) return c.json({ error: "Unauthorized" }, 401);
   const userId = payload.sub as string;
@@ -22,9 +24,10 @@ statsRouter.get("/", async (c) => {
     .where(eq(schema.user.id, userId))
     .limit(1);
 
-  if (users.length === 0) return c.json({ error: "User not found" }, 404);
+  const userRecord = users[0];
+  if (!userRecord) return c.json({ error: "User not found" }, 404);
 
-  const meta = users[0].metadata as { contentCount?: number; tagCount?: number };
+  const meta = userRecord.metadata as { contentCount?: number; tagCount?: number };
 
   return c.json({
     totalContents: Number(meta.contentCount || 0),

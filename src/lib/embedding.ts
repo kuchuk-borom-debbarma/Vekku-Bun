@@ -15,7 +15,8 @@ export const setEmbeddingConfig = (config: {
 
 const localEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
-    return (await localEmbeddingService.generateEmbeddings([text]))[0];
+    const res = await localEmbeddingService.generateEmbeddings([text]);
+    return res[0]!;
   },
   generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
     console.warn(
@@ -33,7 +34,7 @@ const localEmbeddingService: IEmbeddingService = {
 const cloudflareEmbeddingService: IEmbeddingService = {
   generateEmbedding: async (text: string): Promise<number[]> => {
     const results = await cloudflareEmbeddingService.generateEmbeddings([text]);
-    return results[0];
+    return results[0]!;
   },
   generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
     const accountId = embeddingConfig.accountId;

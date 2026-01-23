@@ -115,7 +115,7 @@ export class TagServiceImpl implements ITagService {
     if (data.length === 0) return [];
     
     const db = getDb();
-    const userId = data[0].userId;
+    const userId = data[0]!.userId;
 
     const values = data.map(d => ({
       id: generateUUID(),

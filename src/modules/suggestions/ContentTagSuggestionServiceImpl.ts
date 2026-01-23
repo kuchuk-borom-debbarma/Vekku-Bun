@@ -14,15 +14,19 @@ import { CacheServiceUpstash } from "../../lib/cache";
 import { calculateKeywordLimit, extractCandidates } from "../../lib/keywords";
 
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  if (vecA.length !== vecB.length) return 0;
   let dotProduct = 0;
   let magnitudeA = 0;
   let magnitudeB = 0;
   for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    magnitudeA += vecA[i] * vecA[i];
-    magnitudeB += vecB[i] * vecB[i];
+    const a = vecA[i]!;
+    const b = vecB[i]!;
+    dotProduct += a * b;
+    magnitudeA += a * a;
+    magnitudeB += b * b;
   }
-  return dotProduct / (Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB));
+  const mag = Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB);
+  return mag === 0 ? 0 : dotProduct / mag;
 }
 
 export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
@@ -49,10 +53,15 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     const docVector = embeddings[0];
     const candidateVectors = embeddings.slice(1);
 
-    const scored = candidates.map((word, i) => ({
-      word,
-      score: cosineSimilarity(docVector, candidateVectors[i])
-    }));
+    if (!docVector) return [];
+
+    const scored = candidates.map((word, i) => {
+      const cVec = candidateVectors[i];
+      return {
+        word,
+        score: cVec ? cosineSimilarity(docVector, cVec) : 0
+      };
+    });
 
     // Sort by Similarity (Desc) and take top 'limit'
     return scored

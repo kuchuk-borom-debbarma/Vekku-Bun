@@ -187,7 +187,7 @@ contentRouter.post("/:id/tags", async (c) => {
 
   const success = await contentTagService.addTagsToContent({
     tagIds,
-    contentId: id,
+    contentId,
     userId: user.id,
   });
 

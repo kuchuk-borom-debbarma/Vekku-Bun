@@ -142,9 +142,11 @@ export class ContentServiceImpl implements IContentService {
     // Invalidate Caches
     const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", content.id);
     const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", content.userId, "*");
+    const suggestionCacheKey = CacheServiceUpstash.generateKey("suggestions", "list", content.userId, content.id);
     await Promise.all([
       CacheServiceUpstash.del(detailCacheKey),
       CacheServiceUpstash.delByPattern(listCachePattern),
+      CacheServiceUpstash.del(suggestionCacheKey),
     ]);
 
     // Regenerate suggestions via Event
@@ -207,7 +209,7 @@ export class ContentServiceImpl implements IContentService {
       // Invalidate Caches
       const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
       const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");
-      const suggestionCacheKey = CacheServiceUpstash.generateKey("suggestions", "content", id);
+      const suggestionCacheKey = CacheServiceUpstash.generateKey("suggestions", "list", userId, id);
       const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", id, "*");
       
       await Promise.all([
