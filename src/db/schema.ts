@@ -125,5 +125,7 @@ export const contentTags = pgTable(
       table.contentId,
       table.tagId,
     ),
+    index("content_tags_tag_id_idx").on(table.tagId),
+    index("content_tags_content_id_idx").on(table.contentId),
   ],
 );

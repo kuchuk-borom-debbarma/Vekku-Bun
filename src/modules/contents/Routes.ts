@@ -172,6 +172,33 @@ contentRouter.get("/", async (c) => {
   }
 });
 
+// Get Contents by Tags
+contentRouter.get("/by-tags", async (c) => {
+  const user = c.get("user");
+  const tagIdsStr = c.req.query("tagIds");
+  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 20;
+  const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : 0;
+
+  if (!tagIdsStr) {
+    return c.json({ error: "tagIds query parameter is required" }, 400);
+  }
+
+  const tagIds = tagIdsStr.split(",").filter(id => id.trim().length > 0);
+  const contentService = getContentService();
+
+  try {
+    const result = await contentService.getContentsByTags(
+      user.id,
+      tagIds,
+      limit,
+      offset
+    );
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
 // --- Content Tag Routes ---
 
 // Add Tags to Content

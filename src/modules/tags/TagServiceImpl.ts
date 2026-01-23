@@ -59,6 +59,16 @@ export class TagServiceImpl implements ITagService {
         `);
       }
 
+      console.log(`[TagService] Tag Created: ${tag.name} (${tag.id})`);
+      const userTag: UserTag = {
+        id: tag.id,
+        name: tag.name,
+        semantic: tag.semantic,
+        userId: tag.userId,
+        createdAt: tag.createdAt,
+        updatedAt: tag.updatedAt,
+      };
+
       // Invalidate Caches
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
       const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", tag.userId, "*");

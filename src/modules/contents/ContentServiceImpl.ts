@@ -361,4 +361,97 @@ export class ContentServiceImpl implements IContentService {
 
     return result;
   }
+
+  async getContentsByTags(
+    userId: string,
+    tagIds: string[],
+    limit: number = 20,
+    offset: number = 0,
+  ): Promise<ChunkPaginationData<Content>> {
+    if (tagIds.length === 0) {
+      return {
+        data: [],
+        metadata: { nextChunkId: null, chunkSize: limit, chunkTotalItems: 0, limit, offset },
+      };
+    }
+
+    /**
+     * SQL Strategy: 
+     * Find content IDs that have entries in content_tags for ALL provided tagIds.
+     */
+    const contentIdsQuery = this.db
+      .select({ contentId: schema.contentTags.contentId })
+      .from(schema.contentTags)
+      .where(
+        and(
+          eq(schema.contentTags.userId, userId),
+          inArray(schema.contentTags.tagId, tagIds)
+        )
+      )
+      .groupBy(schema.contentTags.contentId)
+      .having(sql`count(distinct ${schema.contentTags.tagId}) = ${tagIds.length}`);
+
+    // Fetch total count for pagination metadata
+    const totalFoundResult = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(sql`(${contentIdsQuery}) as matching_contents`);
+    
+    const totalFound = Number(totalFoundResult[0]?.count || 0);
+
+    if (totalFound === 0) {
+      return {
+        data: [],
+        metadata: { nextChunkId: null, chunkSize: limit, chunkTotalItems: 0, limit, offset },
+      };
+    }
+
+    // Fetch actual content data with pagination
+    const matchingRows = await this.db
+      .select({ id: schema.contentTags.contentId })
+      .from(schema.contentTags)
+      .innerJoin(schema.contents, eq(schema.contentTags.contentId, schema.contents.id))
+      .where(
+        and(
+          eq(schema.contentTags.userId, userId),
+          inArray(schema.contentTags.tagId, tagIds)
+        )
+      )
+      .groupBy(schema.contentTags.contentId, schema.contents.createdAt)
+      .having(sql`count(distinct ${schema.contentTags.tagId}) = ${tagIds.length}`)
+      .orderBy(desc(schema.contents.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const ids = matchingRows.map(r => r.id);
+    
+    let pageData: Content[] = [];
+    if (ids.length > 0) {
+      const rows = await this.db
+        .select()
+        .from(schema.contents)
+        .where(inArray(schema.contents.id, ids))
+        .orderBy(desc(schema.contents.createdAt));
+
+      pageData = rows.map(content => ({
+        id: content.id,
+        title: content.title,
+        body: content.body,
+        userId: content.userId,
+        contentType: content.contentType as ContentType,
+        createdAt: content.createdAt,
+        updatedAt: content.updatedAt,
+      }));
+    }
+
+    return {
+      data: pageData,
+      metadata: {
+        nextChunkId: null,
+        chunkSize: limit,
+        chunkTotalItems: totalFound,
+        limit,
+        offset,
+      },
+    };
+  }
 }

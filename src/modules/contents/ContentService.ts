@@ -47,4 +47,11 @@ export interface IContentService {
     offset?: number,
     chunkId?: string,
   ): Promise<ChunkPaginationData<Content>>;
+
+  getContentsByTags(
+    userId: string,
+    tagIds: string[],
+    limit?: number,
+    offset?: number,
+  ): Promise<ChunkPaginationData<Content>>;
 }

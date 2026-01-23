@@ -37,9 +37,10 @@ export interface IContentTagSuggestionService {
    * Get suggested tags and potential keywords for a piece of content (Cache only)
    */
   getSuggestionsForContent(
-    contentId: string,
+    contentId: string | undefined,
     userId: string,
     mode?: "tags" | "keywords" | "both",
+    text?: string,
   ): Promise<ContentSuggestions | null>;
 
   extractKeywords(content: string): Promise<{ word: string; score: number }[]>;
