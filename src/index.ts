@@ -28,6 +28,8 @@ type Bindings = {
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
   WORKER?: string;
+  GITHUB_URL?: string;
+  GMAIL_URL?: string;
 };
 
 const createApp = (env: Bindings) => {
@@ -37,6 +39,13 @@ const createApp = (env: Bindings) => {
   app.use("/api/*", rateLimiter);
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
+  
+  app.get("/api/config", (c) => {
+    return c.json({
+      githubUrl: c.env.GITHUB_URL || "https://github.com",
+      gmailUrl: c.env.GMAIL_URL || "mailto:admin@example.com",
+    });
+  });
 
   // Mount Routes
   app.route("/api/auth", authRouter);
