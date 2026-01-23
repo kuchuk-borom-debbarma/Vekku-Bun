@@ -354,8 +354,8 @@ export class TagServiceImpl implements ITagService {
       .where(
         and(
           eq(schema.userTags.userId, userId),
-          // ParadeDB search operator: @@@ on the table searches all indexed columns
-          sql`tags @@@ ${fuzzyQuery}`,
+          // Explicitly search name OR semantic to avoid table alias issues
+          sql`(${schema.userTags.name} @@@ ${fuzzyQuery} OR ${schema.userTags.semantic} @@@ ${fuzzyQuery})`,
         ),
       )
       .limit(limit)
@@ -377,7 +377,7 @@ export class TagServiceImpl implements ITagService {
       .where(
         and(
           eq(schema.userTags.userId, userId),
-          sql`tags @@@ ${fuzzyQuery}`,
+          sql`(${schema.userTags.name} @@@ ${fuzzyQuery} OR ${schema.userTags.semantic} @@@ ${fuzzyQuery})`,
         ),
       );
     const totalFound = totalResult[0]?.count || 0;
