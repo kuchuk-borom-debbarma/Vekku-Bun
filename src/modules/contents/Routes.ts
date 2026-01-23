@@ -84,6 +84,61 @@ contentRouter.post("/", async (c) => {
   }
 });
 
+// Get Contents by Tags
+contentRouter.get("/by-tags", async (c) => {
+  const user = c.get("user");
+  const tagIdsStr = c.req.query("tagIds");
+  const chunkId = c.req.query("chunkId");
+  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 20;
+  const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : 0;
+
+  if (!tagIdsStr) {
+    return c.json({ error: "tagIds query parameter is required" }, 400);
+  }
+
+  const tagIds = tagIdsStr.split(",").filter(id => id.trim().length > 0);
+  const contentService = getContentService();
+
+  try {
+    const result = await contentService.getContentsByTags(
+      user.id,
+      tagIds,
+      limit,
+      offset,
+      chunkId
+    );
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
+// List Contents (Pagination)
+contentRouter.get("/", async (c) => {
+  const user = c.get("user");
+  const chunkId = c.req.query("chunkId");
+  const limit = c.req.query("limit")
+    ? parseInt(c.req.query("limit")!)
+    : undefined;
+  const offset = c.req.query("offset")
+    ? parseInt(c.req.query("offset")!)
+    : undefined;
+
+  const contentService = getContentService();
+
+  try {
+    const result = await contentService.getContentsByUserId(
+      user.id,
+      limit,
+      offset,
+      chunkId,
+    );
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
 // Update Content
 contentRouter.patch("/:id", async (c) => {
   const id = c.req.param("id");
@@ -144,61 +199,6 @@ contentRouter.get("/:id", async (c) => {
   }
 
   return c.json(result);
-});
-
-// List Contents (Pagination)
-contentRouter.get("/", async (c) => {
-  const user = c.get("user");
-  const chunkId = c.req.query("chunkId");
-  const limit = c.req.query("limit")
-    ? parseInt(c.req.query("limit")!)
-    : undefined;
-  const offset = c.req.query("offset")
-    ? parseInt(c.req.query("offset")!)
-    : undefined;
-
-  const contentService = getContentService();
-
-  try {
-    const result = await contentService.getContentsByUserId(
-      user.id,
-      limit,
-      offset,
-      chunkId,
-    );
-    return c.json(result);
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 400);
-  }
-});
-
-// Get Contents by Tags
-contentRouter.get("/by-tags", async (c) => {
-  const user = c.get("user");
-  const tagIdsStr = c.req.query("tagIds");
-  const chunkId = c.req.query("chunkId");
-  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 20;
-  const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : 0;
-
-  if (!tagIdsStr) {
-    return c.json({ error: "tagIds query parameter is required" }, 400);
-  }
-
-  const tagIds = tagIdsStr.split(",").filter(id => id.trim().length > 0);
-  const contentService = getContentService();
-
-  try {
-    const result = await contentService.getContentsByTags(
-      user.id,
-      tagIds,
-      limit,
-      offset,
-      chunkId
-    );
-    return c.json(result);
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 400);
-  }
 });
 
 // --- Content Tag Routes ---

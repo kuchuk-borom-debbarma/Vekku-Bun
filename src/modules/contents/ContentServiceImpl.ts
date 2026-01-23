@@ -61,7 +61,11 @@ export class ContentServiceImpl implements IContentService {
 
     // Invalidate List Cache
     const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", data.userId, "*");
-    await CacheServiceUpstash.delByPattern(listCachePattern);
+    const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", data.userId, "*");
+    await Promise.all([
+      CacheServiceUpstash.delByPattern(listCachePattern),
+      CacheServiceUpstash.delByPattern(filteredListCachePattern)
+    ]);
 
     // Trigger Event-Driven Suggestions
     try {
@@ -142,10 +146,12 @@ export class ContentServiceImpl implements IContentService {
     // Invalidate Caches
     const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", content.id);
     const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", content.userId, "*");
+    const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", content.userId, "*");
     const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", content.userId, content.id);
     await Promise.all([
       CacheServiceUpstash.del(detailCacheKey),
       CacheServiceUpstash.delByPattern(listCachePattern),
+      CacheServiceUpstash.delByPattern(filteredListCachePattern),
       CacheServiceUpstash.delByPattern(suggestionCachePattern),
     ]);
 
@@ -209,12 +215,14 @@ export class ContentServiceImpl implements IContentService {
       // Invalidate Caches
       const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
       const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");
+      const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", userId, "*");
       const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", userId, id);
       const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", id, "*");
       
       await Promise.all([
         CacheServiceUpstash.del(detailCacheKey),
         CacheServiceUpstash.delByPattern(listCachePattern),
+        CacheServiceUpstash.delByPattern(filteredListCachePattern),
         CacheServiceUpstash.delByPattern(suggestionCachePattern),
         CacheServiceUpstash.delByPattern(contentTagsCachePattern),
       ]);
@@ -369,6 +377,18 @@ export class ContentServiceImpl implements IContentService {
     offset: number = 0,
     chunkId?: string,
   ): Promise<ChunkPaginationData<Content>> {
+    const cacheKey = CacheServiceUpstash.generateKey(
+      "contents",
+      "list-filtered",
+      userId,
+      tagIds.sort().join(","),
+      chunkId || "root",
+      limit,
+      offset,
+    );
+    const cached = await CacheServiceUpstash.get<ChunkPaginationData<Content>>(cacheKey);
+    if (cached) return cached;
+
     if (tagIds.length === 0) {
       return {
         data: [],
@@ -431,21 +451,24 @@ export class ContentServiceImpl implements IContentService {
       const rows = await this.db
         .select()
         .from(schema.contents)
-        .where(inArray(schema.contents.id, pageIds))
-        .orderBy(desc(schema.contents.createdAt));
+        .where(inArray(schema.contents.id, pageIds));
 
-      pageData = rows.map(content => ({
-        id: content.id,
-        title: content.title,
-        body: content.body,
-        userId: content.userId,
-        contentType: content.contentType as ContentType,
-        createdAt: content.createdAt,
-        updatedAt: content.updatedAt,
-      }));
+      const idMap = new Map(rows.map((r) => [r.id, r]));
+      pageData = pageIds
+        .map((id) => idMap.get(id)!)
+        .filter((item) => item !== undefined)
+        .map((content) => ({
+          id: content.id,
+          title: content.title,
+          body: content.body,
+          userId: content.userId,
+          contentType: content.contentType as ContentType,
+          createdAt: content.createdAt,
+          updatedAt: content.updatedAt,
+        }));
     }
 
-    return {
+    const result = {
       data: pageData,
       metadata: {
         nextChunkId,
@@ -455,5 +478,9 @@ export class ContentServiceImpl implements IContentService {
         offset,
       },
     };
+
+    await CacheServiceUpstash.set(cacheKey, result);
+
+    return result;
   }
 }
