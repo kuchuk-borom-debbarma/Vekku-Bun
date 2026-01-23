@@ -8,6 +8,7 @@ import {
   vector,
   uniqueIndex,
   pgEnum,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -23,6 +24,7 @@ export const user = pgTable(
     password: text().notNull(), // Hashed
     name: text().notNull(),
     role: userRoles("role").default("USER").notNull(),
+    metadata: jsonb("metadata").default({}).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at"),
     isDeleted: boolean("is_deleted").default(false).notNull(),

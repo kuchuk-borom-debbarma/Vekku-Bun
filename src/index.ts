@@ -5,6 +5,7 @@ import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
 import { adminRouter } from "./modules/admin/Routes";
+import { statsRouter } from "./modules/stats/Routes";
 import { initSuggestionListeners } from "./modules/suggestions";
 import { getDb } from "./db";
 import { setJwtSecret } from "./lib/jwt";
@@ -43,6 +44,7 @@ const createApp = (env: Bindings) => {
   app.route("/api/content", contentRouter);
   app.route("/api/suggestions", suggestionRouter);
   app.route("/api/admin", adminRouter);
+  app.route("/api/stats", statsRouter);
 
   return app;
 };

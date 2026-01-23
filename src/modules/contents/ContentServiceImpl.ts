@@ -44,6 +44,17 @@ export class ContentServiceImpl implements IContentService {
     const content = result[0];
     if (!content) return null;
 
+    // Atomic increment of contentCount in user metadata
+    await this.db.execute(sql`
+      UPDATE users 
+      SET metadata = jsonb_set(
+        metadata, 
+        '{contentCount}', 
+        (COALESCE((metadata->>'contentCount')::int, 0) + 1)::text::jsonb
+      )
+      WHERE id = ${data.userId}
+    `);
+
     console.log(
       `[ContentService] Content Created: ${content.title} (${content.id})`,
     );
@@ -182,6 +193,17 @@ export class ContentServiceImpl implements IContentService {
       .returning();
 
     if (result.length > 0) {
+      // Atomic decrement of contentCount
+      await this.db.execute(sql`
+        UPDATE users 
+        SET metadata = jsonb_set(
+          metadata, 
+          '{contentCount}', 
+          (GREATEST(COALESCE((metadata->>'contentCount')::int, 0) - 1, 0))::text::jsonb
+        )
+        WHERE id = ${userId}
+      `);
+
       // Invalidate Caches
       const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
       const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");

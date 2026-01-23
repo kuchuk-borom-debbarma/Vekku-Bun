@@ -46,6 +46,17 @@ export class TagServiceImpl implements ITagService {
 
     const tag = result[0];
     if (tag) {
+      // Atomic increment of tagCount
+      await db.execute(sql`
+        UPDATE users 
+        SET metadata = jsonb_set(
+          metadata, 
+          '{tagCount}', 
+          (COALESCE((metadata->>'tagCount')::int, 0) + 1)::text::jsonb
+        )
+        WHERE id = ${data.userId}
+      `);
+
       console.log(`[TagService] Tag Created: ${tag.name} (${tag.id})`);
       const userTag = {
         id: tag.id,
@@ -197,6 +208,17 @@ export class TagServiceImpl implements ITagService {
       .returning();
 
     if (result.length > 0) {
+      // Atomic decrement of tagCount
+      await db.execute(sql`
+        UPDATE users 
+        SET metadata = jsonb_set(
+          metadata, 
+          '{tagCount}', 
+          (GREATEST(COALESCE((metadata->>'tagCount')::int, 0) - 1, 0))::text::jsonb
+        )
+        WHERE id = ${data.userId}
+      `);
+
       // Invalidate List Cache
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", data.userId, "*");
       await CacheServiceUpstash.delByPattern(listCachePattern);
