@@ -15,6 +15,10 @@
 
 ## Architecture & Features
 
+### 0. API Flow & Logic
+A detailed documentation of all API endpoints and their internal data flows (DB, Cache, AI, Events) can be found here:
+*   **Documentation:** `docs/api-flow.md`
+
 ### 1. Chunk-Based Two-Step Pagination
 The project implements a **Chunk-Based Two-Step Pagination** strategy to solve the performance issues of deep offsets while maintaining user-friendly page numbers within local segments.
 
