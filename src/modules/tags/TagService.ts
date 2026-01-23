@@ -41,5 +41,12 @@ export interface ITagService {
     offset?: number;
   }): Promise<ChunkPaginationData<UserTag>>;
 
+  searchTags(data: {
+    userId: string;
+    query: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ChunkPaginationData<UserTag>>;
+
   getTagsByIds(tagIds: string[], userId: string): Promise<UserTag[]>;
 }

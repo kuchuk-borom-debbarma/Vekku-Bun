@@ -1,0 +1,7 @@
+ALTER TABLE "content_tag_suggestions" ADD CONSTRAINT "content_tag_suggestions_fk_content_id_contents_id_fk" FOREIGN KEY ("fk_content_id") REFERENCES "public"."contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "content_tag_suggestions" ADD CONSTRAINT "content_tag_suggestions_fk_tag_id_tags_id_fk" FOREIGN KEY ("fk_tag_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "content_tag_suggestions" ADD CONSTRAINT "content_tag_suggestions_fk_user_id_users_id_fk" FOREIGN KEY ("fk_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "content_tags" ADD CONSTRAINT "content_tags_fk_user_id_users_id_fk" FOREIGN KEY ("fk_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "content_tags" ADD CONSTRAINT "content_tags_fk_content_id_contents_id_fk" FOREIGN KEY ("fk_content_id") REFERENCES "public"."contents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "content_tags" ADD CONSTRAINT "content_tags_fk_tag_id_tags_id_fk" FOREIGN KEY ("fk_tag_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "tags_search_idx" ON "tags" USING bm25 ("name","semantic");

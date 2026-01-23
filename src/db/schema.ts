@@ -73,6 +73,10 @@ export const userTags = pgTable(
     index("tags_semantic_idx").on(table.semantic),
     // Prevent duplicate tags for the same user
     uniqueIndex("unique_user_tag_active").on(table.userId, table.name),
+    // Full text search index (ParadeDB / pg_search)
+    index("tags_search_idx")
+      .using("bm25", table.id, table.name, table.semantic)
+      .with({ key_field: "id" }),
   ],
 );
 

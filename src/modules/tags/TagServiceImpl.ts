@@ -331,6 +331,69 @@ export class TagServiceImpl implements ITagService {
     return result;
   }
 
+  async searchTags(data: {
+    userId: string;
+    query: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ChunkPaginationData<UserTag>> {
+    const { userId, query, limit = 10, offset = 0 } = data;
+    const db = getDb();
+
+    // ParadeDB BM25 Search
+    // We append '~' to each word in the query to enable fuzzy matching (typo tolerance)
+    const fuzzyQuery = query
+      .trim()
+      .split(/\s+/)
+      .map((word) => `${word}~`)
+      .join(" ");
+
+    const rows = await db
+      .select()
+      .from(schema.userTags)
+      .where(
+        and(
+          eq(schema.userTags.userId, userId),
+          // ParadeDB search operator: @@@ on the table searches all indexed columns
+          sql`tags @@@ ${fuzzyQuery}`,
+        ),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    const pageData = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      semantic: row.semantic,
+      userId: row.userId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+
+    // For total search results count
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.userTags)
+      .where(
+        and(
+          eq(schema.userTags.userId, userId),
+          sql`tags @@@ ${fuzzyQuery}`,
+        ),
+      );
+    const totalFound = totalResult[0]?.count || 0;
+
+    return {
+      data: pageData,
+      metadata: {
+        nextChunkId: null, // Search uses offset, not ID cursors
+        chunkSize: limit, // In search context, chunk size is effectively the limit
+        chunkTotalItems: totalFound, // Total found across all pages
+        limit,
+        offset,
+      },
+    };
+  }
+
   async getTagsByIds(tagIds: string[], userId: string): Promise<UserTag[]> {
     if (tagIds.length === 0) return [];
     const db = getDb();

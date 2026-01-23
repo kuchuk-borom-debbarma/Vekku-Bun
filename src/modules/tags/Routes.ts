@@ -108,11 +108,22 @@ tagRouter.delete("/:id", async (c) => {
 
 tagRouter.get("/", async (c) => {
   const user = c.get("user");
+  const query = c.req.query("q");
   const chunkId = c.req.query("chunkId");
   const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : undefined;
   const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : undefined;
 
   const tagService = getTagService();
+
+  if (query) {
+    const result = await tagService.searchTags({
+      userId: user.id,
+      query,
+      limit,
+      offset,
+    });
+    return c.json(result);
+  }
 
   const result = await tagService.getTagsOfUser({ userId: user.id, chunkId, limit, offset });
   return c.json(result);

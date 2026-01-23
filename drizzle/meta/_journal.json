@@ -64,6 +64,27 @@
       "when": 1769020085815,
       "tag": "0008_unknown_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769158152960,
+      "tag": "0009_curvy_darkhawk",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1769158234700,
+      "tag": "0010_true_punisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1769158305752,
+      "tag": "0011_solid_overlord",
+      "breakpoints": true
     }
   ]
 }
