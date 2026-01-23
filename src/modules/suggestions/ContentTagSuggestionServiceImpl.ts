@@ -4,6 +4,7 @@ import {
   tagEmbeddings,
   userTags,
   contentTagSuggestions,
+  contentKeywordSuggestions,
 } from "../../db/schema";
 import { getEmbeddingService } from "../../lib/embedding";
 import { generateUUID, normalize } from "../../lib/uuid";
@@ -27,7 +28,7 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
-  async extractKeywords(content: string): Promise<string[]> {
+  async extractKeywords(content: string): Promise<{ word: string; score: number }[]> {
     const limit = calculateKeywordLimit(content);
     // Pre-filter candidates by TF to save API calls (max 50)
     const candidates = extractCandidates(content, [1, 2], 50);
@@ -59,8 +60,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     // Sort by Similarity (Desc) and take top 'limit'
     return scored
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(s => s.word);
+      .slice(0, limit);
   }
 
   async ensureConceptExists(semantic: string): Promise<string> {
@@ -131,15 +131,23 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     const db = getDb();
     const embedder = getEmbeddingService();
 
-    // 1. Generate Embedding for the content
-    const contentEmbedding = await embedder.generateEmbedding(data.content);
-    console.log(`[SuggestionService] Content embedding generated.`);
+    // 1. Generate Content Embedding & Extract Keywords (Parallel)
+    // Note: extractKeywords also generates content embedding internally. 
+    // Optimization: We could share it, but for simplicity/decoupling, we let them run.
+    // However, since Cloudflare AI is fast, two calls are fine. Or we can reuse if we refactor.
+    // Let's run them in parallel.
+    
+    const [contentEmbedding, rawKeywords] = await Promise.all([
+      embedder.generateEmbedding(data.content),
+      this.extractKeywords(data.content)
+    ]);
 
-    // 2. Perform Similarity Search
-    // Note: The <=> operator returns 'cosine distance'. Lower distance = Higher similarity.
+    console.log(`[SuggestionService] Content embedding & keywords generated.`);
+
+    // 2. Perform Similarity Search for Existing Tags
     const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(contentEmbedding)}`;
 
-    const suggestions = await db
+    const existingSuggestions = await db
       .select({
         id: userTags.id,
         name: userTags.name,
@@ -149,28 +157,54 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       .from(userTags)
       .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
       .where(eq(userTags.userId, data.userId))
-      .orderBy(distance) // Closest distance first
+      .orderBy(distance)
       .limit(data.suggestionsCount);
 
-    console.log(`[SuggestionService] Found ${suggestions.length} suggestions.`);
+    console.log(`[SuggestionService] Found ${existingSuggestions.length} existing tag matches.`);
 
-    // 3. Store Suggestions
-    // Transactional safety would be good here, but for now we'll do delete-then-insert
-    await db
-      .delete(contentTagSuggestions)
-      .where(eq(contentTagSuggestions.contentId, data.contentId));
+    // 3. Filter Keywords (Dedup against Existing)
+    const existingNames = new Set(existingSuggestions.map(s => normalize(s.name)));
+    const newKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
 
-    if (suggestions.length > 0) {
-      await db.insert(contentTagSuggestions).values(
-        suggestions.map((s) => ({
-          id: generateUUID(),
-          contentId: data.contentId,
-          tagId: s.id,
-          userId: data.userId,
-          score: String(s.score),
-        })),
+    console.log(`[SuggestionService] Found ${newKeywords.length} new keyword suggestions.`);
+
+    // 4. Store Suggestions (Transactional ideally)
+    await Promise.all([
+      db.delete(contentTagSuggestions).where(eq(contentTagSuggestions.contentId, data.contentId)),
+      db.delete(contentKeywordSuggestions).where(eq(contentKeywordSuggestions.contentId, data.contentId))
+    ]);
+
+    const promises = [];
+
+    if (existingSuggestions.length > 0) {
+      promises.push(
+        db.insert(contentTagSuggestions).values(
+          existingSuggestions.map((s) => ({
+            id: generateUUID(),
+            contentId: data.contentId,
+            tagId: s.id,
+            userId: data.userId,
+            score: String(s.score),
+          })),
+        )
       );
     }
+
+    if (newKeywords.length > 0) {
+      promises.push(
+        db.insert(contentKeywordSuggestions).values(
+          newKeywords.map((k) => ({
+            id: generateUUID(),
+            contentId: data.contentId,
+            userId: data.userId,
+            keyword: k.word,
+            score: String(k.score), // Similarity (Higher is better)
+          })),
+        )
+      );
+    }
+
+    await Promise.all(promises);
 
     // Invalidate Cache
     const cacheKey = CacheServiceUpstash.generateKey(
@@ -181,31 +215,30 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     );
     await CacheServiceUpstash.del(cacheKey);
 
-    console.log(`[SuggestionService] Suggestions saved to DB.`);
+    console.log(`[SuggestionService] All suggestions saved to DB.`);
   }
 
   async getSuggestionsForContent(
     contentId: string,
     userId: string,
-  ): Promise<ContentTagSuggestion[]> {
+  ): Promise<any> { // Update implementation to match new interface structure
     const cacheKey = CacheServiceUpstash.generateKey(
       "suggestions",
       "list",
       userId,
       contentId,
     );
-    const cached =
-      await CacheServiceUpstash.get<ContentTagSuggestion[]>(cacheKey);
+    const cached = await CacheServiceUpstash.get<any>(cacheKey);
     if (cached) return cached;
 
     const db = getDb();
 
-    // Join contentTagSuggestions with userTags to get names
-    const results = await db
+    // 1. Fetch Existing Tag Suggestions
+    const tagResults = await db
       .select({
-        suggestionId: contentTagSuggestions.id,
+        tagId: userTags.id,
+        name: userTags.name,
         score: contentTagSuggestions.score,
-        tag: userTags,
       })
       .from(contentTagSuggestions)
       .innerJoin(userTags, eq(contentTagSuggestions.tagId, userTags.id))
@@ -216,16 +249,40 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
         ),
       );
 
-    const data: ContentTagSuggestion[] = results.map((r) => ({
-      id: r.suggestionId,
-      score: r.score,
-      tag: r.tag,
-    })).sort(
-      (a, b) => parseFloat(a.score) - parseFloat(b.score),
-    );
+    // 2. Fetch Keyword Suggestions
+    const keywordResults = await db
+      .select({
+        keyword: contentKeywordSuggestions.keyword,
+        score: contentKeywordSuggestions.score,
+      })
+      .from(contentKeywordSuggestions)
+      .where(
+        and(
+          eq(contentKeywordSuggestions.contentId, contentId),
+          eq(contentKeywordSuggestions.userId, userId),
+        ),
+      );
 
-    await CacheServiceUpstash.set(cacheKey, data);
+    // 3. Format and Sort
+    const existing = tagResults
+      .map((r) => ({
+        tagId: r.tagId,
+        name: r.name,
+        score: r.score,
+      }))
+      .sort((a, b) => parseFloat(a.score) - parseFloat(b.score));
 
-    return data;
+    const potential = keywordResults
+      .map((r) => ({
+        keyword: r.keyword,
+        score: r.score,
+      }))
+      .sort((a, b) => parseFloat(b.score) - parseFloat(a.score)); // Similarity: Higher is better
+
+    const result = { existing, potential };
+
+    await CacheServiceUpstash.set(cacheKey, result);
+
+    return result;
   }
 }

@@ -1,5 +1,21 @@
 import type { UserTag } from "../tags/TagService";
 
+export type ExistingSuggestion = {
+  tagId: string;
+  name: string;
+  score: string;
+};
+
+export type PotentialSuggestion = {
+  keyword: string;
+  score: string;
+};
+
+export type ContentSuggestions = {
+  existing: ExistingSuggestion[];
+  potential: PotentialSuggestion[];
+};
+
 export type ContentTagSuggestion = {
   id: string;
   tag: UserTag;
@@ -17,12 +33,12 @@ export interface IContentTagSuggestionService {
   }): Promise<void>;
 
   /**
-   * get suggested tags of a content
+   * Get suggested tags and potential keywords for a piece of content
    */
   getSuggestionsForContent(
     contentId: string,
     userId: string,
-  ): Promise<ContentTagSuggestion[]>;
+  ): Promise<ContentSuggestions>;
 
-  extractKeywords(content: string): Promise<string[]>;
+  extractKeywords(content: string): Promise<{ word: string; score: number }[]>;
 }
