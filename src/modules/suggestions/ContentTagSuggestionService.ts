@@ -7,14 +7,8 @@ export type ContentTagSuggestion = {
 };
 
 export interface IContentTagSuggestionService {
-  learnTag(semantic: string): Promise<string>;
-
-  /**
-   * Ensures a tag concept exists in the DB, potentially without an embedding.
-   * Returns the concept ID.
-   */
   ensureConceptExists(semantic: string): Promise<string>;
-
+  learnTags(semantics: string[]): Promise<string[]>;
   createSuggestionsForContent(data: {
     content: string;
     contentId: string;

@@ -82,39 +82,41 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     return conceptId;
   }
 
-  async learnTag(semantic: string): Promise<string> {
-    console.log(`[SuggestionService] Learning Semantic Concept: "${semantic}"`);
+  async learnTags(semantics: string[]): Promise<string[]> {
+    if (semantics.length === 0) return [];
+    
+    console.log(`[SuggestionService] Learning Semantic Concepts: ${semantics.length} items`);
     const db = getDb();
     const embedder = getEmbeddingService();
-    const normalized = normalize(semantic);
-    const conceptId = generateUUID([normalized]);
+    
+    // Deduplicate and normalize
+    const uniqueSemantics = Array.from(new Set(semantics.map(s => normalize(s))));
+    
+    // Generate embeddings in batch
+    console.log(`[SuggestionService] Generating embeddings for ${uniqueSemantics.length} concepts...`);
+    const embeddings = await embedder.generateEmbeddings(uniqueSemantics);
+    
+    const valuesToInsert = uniqueSemantics.map((semantic, i) => ({
+      id: generateUUID([semantic]),
+      semantic,
+      embedding: embeddings[i],
+      updatedAt: new Date(),
+    }));
 
-    // Generate embedding
-    const embedding = await embedder.generateEmbedding(normalized);
-    console.log(
-      `[SuggestionService] Generated Embedding for "${normalized}" (Vector Size: ${embedding.length})`,
-    );
-
-    // Update or Insert with embedding
+    // Batch Upsert
     await db
       .insert(tagEmbeddings)
-      .values({
-        id: conceptId,
-        semantic: normalized,
-        embedding: embedding,
-      })
+      .values(valuesToInsert)
       .onConflictDoUpdate({
         target: tagEmbeddings.id,
         set: {
-          embedding: embedding,
+          embedding: sql`excluded.embedding`,
           updatedAt: new Date(),
         },
       });
 
-    console.log(
-      `[SuggestionService] Concept "${normalized}" learned/updated in DB.`,
-    );
-    return conceptId;
+    console.log(`[SuggestionService] Learned/Updated ${valuesToInsert.length} concepts.`);
+    return valuesToInsert.map(v => v.id);
   }
 
   async createSuggestionsForContent(data: {

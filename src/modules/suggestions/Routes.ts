@@ -100,21 +100,18 @@ suggestionRouter.post("/tags/relearn", async (c) => {
     return c.json({ message: "No matching tags found to relearn" });
   }
 
-  // Process sequentially or parallel? Parallel is faster.
-  const results = await Promise.allSettled(
-    tags.map(async (tag) => {
-        await suggestionService.learnTag(tag.semantic);
-        return tag.id;
-    })
-  );
-
-  const succeeded = results.filter(r => r.status === 'fulfilled').length;
-  const failed = results.filter(r => r.status === 'rejected').length;
-
-  return c.json({ 
-    message: `Relearning complete. Success: ${succeeded}, Failed: ${failed}`,
-    processedTags: tags.map(t => t.id)
-  });
+  // Process in batch
+  const semantics = tags.map(t => t.semantic);
+  
+  try {
+    const conceptIds = await suggestionService.learnTags(semantics);
+    return c.json({ 
+      message: `Relearning complete. Processed ${conceptIds.length} concepts.`,
+      processedTags: tags.map(t => t.id)
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
 });
 
 // Extract Keywords (KeyBERT)

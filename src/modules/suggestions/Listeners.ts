@@ -53,7 +53,7 @@ export const initSuggestionListeners = () => {
     const tag = event.payload;
     try {
       // This will generate the embedding and update the concept record
-      await suggestionService.learnTag(tag.semantic);
+      await suggestionService.learnTags([tag.semantic]);
     } catch (error) {
       console.error(`[SuggestionListener] Failed to learn tag ${tag.name} (${tag.semantic}):`, error);
     }
@@ -63,7 +63,7 @@ export const initSuggestionListeners = () => {
   eventBus.subscribe(TOPICS.TAG.UPDATED, async (event: AppEvent<UserTag>) => {
     const tag = event.payload;
     try {
-      await suggestionService.learnTag(tag.semantic);
+      await suggestionService.learnTags([tag.semantic]);
     } catch (error) {
       console.error(`[SuggestionListener] Failed to relearn tag ${tag.name} (${tag.semantic}):`, error);
     }
