@@ -3,6 +3,7 @@ import { getContentTagSuggestionService } from "./index";
 import { getTagService } from "../tags";
 import { getContentService } from "../contents";
 import { verifyJwt } from "../../lib/jwt";
+import { getAiRatelimit } from "../../middleware/rateLimiter";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -42,43 +43,64 @@ suggestionRouter.use("*", async (c, next) => {
   await next();
 });
 
-// GET Suggestions for Content
+// GET Suggestions for Content (Cached Only)
 suggestionRouter.get("/content/:contentId", async (c) => {
   const contentId = c.req.param("contentId");
   const user = c.get("user");
   const suggestionService = getContentTagSuggestionService();
 
   const result = await suggestionService.getSuggestionsForContent(contentId, user.id);
+  if (!result) return c.json({ existing: [], potential: [] });
   return c.json(result);
 });
 
-// POST Regenerate Suggestions for Content
-suggestionRouter.post("/content/:id/regenerate", async (c) => {
-  const contentId = c.req.param("id");
+/**
+ * Unified Suggestion Generation (Cache-First)
+ */
+suggestionRouter.post("/generate", async (c) => {
+  const { contentId, text } = await c.req.json();
   const user = c.get("user");
-  
-  const contentService = getContentService();
   const suggestionService = getContentTagSuggestionService();
+  const contentService = getContentService();
 
-  const content = await contentService.getContentById(contentId);
-  if (!content) {
-    return c.json({ error: "Content not found" }, 404);
+  // 1. If contentId is provided, check CACHE first
+  if (contentId) {
+    const cached = await suggestionService.getSuggestionsForContent(contentId, user.id);
+    if (cached) {
+      console.log("[Suggestions] Returning from Cache (Skip AI Rate Limit)");
+      return c.json(cached);
+    }
   }
 
-  if (content.userId !== user.id) {
-    return c.json({ error: "Unauthorized" }, 403);
+  // 2. Cache Miss or New Text -> Enforce AI Rate Limit
+  const limiter = getAiRatelimit();
+  if (limiter) {
+    const { success } = await limiter.limit(user.id);
+    if (!success) {
+      return c.json({ error: "AI rate limit exceeded. Please wait a minute." }, 429);
+    }
   }
 
-  // Trigger suggestion generation
-  await suggestionService.createSuggestionsForContent({
-    content: content.body,
-    contentId: content.id,
+  // 3. Resolve Content Body
+  let body = text;
+  if (contentId) {
+    const content = await contentService.getContentById(contentId);
+    if (!content) return c.json({ error: "Content not found" }, 404);
+    if (content.userId !== user.id) return c.json({ error: "Unauthorized" }, 401);
+    body = content.body;
+  }
+
+  if (!body) return c.json({ error: "Text or Content ID is required" }, 400);
+
+  // 4. Generate & Cache
+  const result = await suggestionService.createSuggestionsForContent({
+    content: body,
+    contentId,
     userId: user.id,
-    suggestionsCount: 20, // Default count
+    suggestionsCount: 15,
   });
 
-  const updatedSuggestions = await suggestionService.getSuggestionsForContent(contentId, user.id);
-  return c.json({ message: "Suggestions regenerated", data: updatedSuggestions });
+  return c.json(result);
 });
 
 // POST Relearn Tags (Generate Embeddings)

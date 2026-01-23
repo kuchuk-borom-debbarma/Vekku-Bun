@@ -99,6 +99,13 @@
       "when": 1769166797097,
       "tag": "0013_wide_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1769169304611,
+      "tag": "0014_sudden_talon",
+      "breakpoints": true
     }
   ]
 }

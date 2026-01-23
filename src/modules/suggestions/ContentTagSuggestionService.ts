@@ -27,18 +27,18 @@ export interface IContentTagSuggestionService {
   learnTags(semantics: string[]): Promise<string[]>;
   createSuggestionsForContent(data: {
     content: string;
-    contentId: string;
+    contentId?: string; // Optional if not yet saved
     userId: string;
     suggestionsCount: number;
-  }): Promise<void>;
+  }): Promise<ContentSuggestions>;
 
   /**
-   * Get suggested tags and potential keywords for a piece of content
+   * Get suggested tags and potential keywords for a piece of content (Cache only)
    */
   getSuggestionsForContent(
     contentId: string,
     userId: string,
-  ): Promise<ContentSuggestions>;
+  ): Promise<ContentSuggestions | null>;
 
   extractKeywords(content: string): Promise<{ word: string; score: number }[]>;
 }

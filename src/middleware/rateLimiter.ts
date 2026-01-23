@@ -61,3 +61,43 @@ export const rateLimiter = async (c: Context, next: Next) => {
 
   await next();
 };
+
+let aiRatelimit: Ratelimit | null = null;
+
+export const getAiRatelimit = () => {
+  if (aiRatelimit) return aiRatelimit;
+  try {
+    const redis = getRedisClient();
+    aiRatelimit = new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.slidingWindow(3, "1 m"), // Only 3 requests per minute
+      analytics: true,
+      ephemeralCache: new Map(),
+      prefix: "@upstash/ai-ratelimit",
+    });
+    return aiRatelimit;
+  } catch {
+    return null;
+  }
+};
+
+export const aiRateLimiter = async (c: Context, next: Next) => {
+  const limiter = getAiRatelimit();
+  if (!limiter) return next();
+
+  // Prefer User ID for AI limiting
+  const user = c.get("user");
+  const identifier = user?.id || c.req.header("CF-Connecting-IP") || "anonymous";
+
+  const { success, limit, reset, remaining } = await limiter.limit(identifier);
+
+  c.header("X-AI-RateLimit-Limit", limit.toString());
+  c.header("X-AI-RateLimit-Remaining", remaining.toString());
+  c.header("X-AI-RateLimit-Reset", reset.toString());
+
+  if (!success) {
+    return c.json({ error: "AI rate limit exceeded. Please wait a minute." }, 429);
+  }
+
+  await next();
+};
