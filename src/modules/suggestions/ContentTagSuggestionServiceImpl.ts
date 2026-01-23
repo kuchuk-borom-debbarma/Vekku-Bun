@@ -29,8 +29,15 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return mag === 0 ? 0 : dotProduct / mag;
 }
 
+const KEYWORD_COLLISION_THRESHOLD = 0.3; // Distance lower than this means it's the same concept
+
 export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
   async extractKeywords(content: string): Promise<{ word: string; score: number }[]> {
+    const results = await this.extractKeywordsInternal(content);
+    return results.map(r => ({ word: r.word, score: r.score }));
+  }
+
+  private async extractKeywordsInternal(content: string): Promise<{ word: string; score: number; embedding: number[] }[]> {
     const limit = calculateKeywordLimit(content);
     // Pre-filter candidates by TF to save API calls (max 50)
     const candidates = extractCandidates(content, [1, 2], 50);
@@ -59,7 +66,8 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       const cVec = candidateVectors[i];
       return {
         word,
-        score: cVec ? cosineSimilarity(docVector, cVec) : 0
+        score: cVec ? cosineSimilarity(docVector, cVec) : 0,
+        embedding: cVec || []
       };
     });
 
@@ -134,7 +142,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     const embedder = getEmbeddingService();
 
     let contentEmbedding: number[] | null = null;
-    let rawKeywords: { word: string; score: number }[] = [];
+    let rawKeywords: { word: string; score: number; embedding: number[] }[] = [];
     let existingSuggestions: any[] = [];
 
     // 1. Generate tasks based on mode
@@ -160,17 +168,43 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     if (mode === "keywords" || mode === "both") {
       tasks.push((async () => {
-        rawKeywords = await this.extractKeywords(data.content);
+        rawKeywords = await this.extractKeywordsInternal(data.content);
       })());
     }
 
     await Promise.all(tasks);
 
-    // 2. Filter Keywords (Dedup against Existing if both present or keywords only)
-    // If we only extracted keywords, we don't strictly need to dedup against ALL user tags here (slow),
-    // but we should at least dedup against existingSuggestions if they were fetched.
+    // 2. Filter Keywords
+    // Strategy: 
+    // a) Remove exact name matches
+    // b) Remove keywords that are semantically too close to user's EXISTING tags
+    
     const existingNames = new Set(existingSuggestions.map(s => normalize(s.name)));
-    const filteredKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
+    let filteredKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
+
+    if (filteredKeywords.length > 0 && (mode === "keywords" || mode === "both")) {
+      // Semantic Collision Check:
+      // For each keyword, check if user has ANY tag with distance < threshold
+      // We do this in a single efficient query using LATERAL join for all keywords
+      
+      const collisionChecks = await Promise.all(filteredKeywords.map(async (kw) => {
+        const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(kw.embedding)}`;
+        const match = await db
+          .select({ id: userTags.id })
+          .from(userTags)
+          .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
+          .where(and(
+            eq(userTags.userId, data.userId),
+            sql`${distance} < ${KEYWORD_COLLISION_THRESHOLD}`
+          ))
+          .limit(1);
+        
+        return { word: kw.word, hasCollision: match.length > 0 };
+      }));
+
+      const collidedWords = new Set(collisionChecks.filter(c => c.hasCollision).map(c => c.word));
+      filteredKeywords = filteredKeywords.filter(k => !collidedWords.has(k.word));
+    }
 
     const result: ContentSuggestions = {
       existing: existingSuggestions.map(s => ({
