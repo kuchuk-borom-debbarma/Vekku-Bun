@@ -176,11 +176,11 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       existing: existingSuggestions.map(s => ({
         tagId: s.tagId,
         name: s.name,
-        score: String(s.score)
+        score: Number(s.score).toFixed(3)
       })),
       potential: filteredKeywords.map(k => ({
         keyword: k.word,
-        score: String(k.score)
+        score: (1 - k.score).toFixed(3) // Invert similarity to distance: lower is better
       }))
     };
 
