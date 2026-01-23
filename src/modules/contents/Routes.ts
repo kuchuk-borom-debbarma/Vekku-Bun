@@ -176,6 +176,7 @@ contentRouter.get("/", async (c) => {
 contentRouter.get("/by-tags", async (c) => {
   const user = c.get("user");
   const tagIdsStr = c.req.query("tagIds");
+  const chunkId = c.req.query("chunkId");
   const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 20;
   const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : 0;
 
@@ -191,7 +192,8 @@ contentRouter.get("/by-tags", async (c) => {
       user.id,
       tagIds,
       limit,
-      offset
+      offset,
+      chunkId
     );
     return c.json(result);
   } catch (error) {

@@ -367,6 +367,7 @@ export class ContentServiceImpl implements IContentService {
     tagIds: string[],
     limit: number = 20,
     offset: number = 0,
+    chunkId?: string,
   ): Promise<ChunkPaginationData<Content>> {
     if (tagIds.length === 0) {
       return {
@@ -375,61 +376,62 @@ export class ContentServiceImpl implements IContentService {
       };
     }
 
-    /**
-     * SQL Strategy: 
-     * Find content IDs that have entries in content_tags for ALL provided tagIds.
-     */
-    const contentIdsQuery = this.db
-      .select({ contentId: schema.contentTags.contentId })
-      .from(schema.contentTags)
-      .where(
-        and(
-          eq(schema.contentTags.userId, userId),
-          inArray(schema.contentTags.tagId, tagIds)
-        )
-      )
-      .groupBy(schema.contentTags.contentId)
-      .having(sql`count(distinct ${schema.contentTags.tagId}) = ${tagIds.length}`);
-
-    // Fetch total count for pagination metadata
-    const totalFoundResult = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(sql`(${contentIdsQuery}) as matching_contents`);
-    
-    const totalFound = Number(totalFoundResult[0]?.count || 0);
-
-    if (totalFound === 0) {
-      return {
-        data: [],
-        metadata: { nextChunkId: null, chunkSize: limit, chunkTotalItems: 0, limit, offset },
-      };
+    if (offset < 0) throw new Error("Offset cannot be negative.");
+    if (limit < 1) throw new Error("Limit must be at least 1.");
+    if (offset >= SEGMENT_SIZE) {
+      throw new Error(`Offset (${offset}) cannot equal or exceed chunk size (${SEGMENT_SIZE}).`);
     }
 
-    // Fetch actual content data with pagination
-    const matchingRows = await this.db
+    // 1. Resolve Cursor for chunking
+    let cursorCondition = sql`TRUE`;
+    if (chunkId) {
+      const [cursorContent] = await this.db
+        .select({ createdAt: schema.contents.createdAt })
+        .from(schema.contents)
+        .where(and(eq(schema.contents.id, chunkId), eq(schema.contents.userId, userId)))
+        .limit(1);
+
+      if (cursorContent) {
+        cursorCondition = sql`(${schema.contents.createdAt}, ${schema.contents.id}) <= (${cursorContent.createdAt}, ${chunkId})`;
+      }
+    }
+
+    /**
+     * SQL Strategy for Chunked IDs:
+     * Find content IDs that match ALL tags, applying the chunking cursor.
+     */
+    const chunkIdsQuery = await this.db
       .select({ id: schema.contentTags.contentId })
       .from(schema.contentTags)
       .innerJoin(schema.contents, eq(schema.contentTags.contentId, schema.contents.id))
       .where(
         and(
           eq(schema.contentTags.userId, userId),
-          inArray(schema.contentTags.tagId, tagIds)
+          inArray(schema.contentTags.tagId, tagIds),
+          cursorCondition
         )
       )
       .groupBy(schema.contentTags.contentId, schema.contents.createdAt)
       .having(sql`count(distinct ${schema.contentTags.tagId}) = ${tagIds.length}`)
-      .orderBy(desc(schema.contents.createdAt))
-      .limit(limit)
-      .offset(offset);
+      .orderBy(desc(schema.contents.createdAt), desc(schema.contentTags.contentId))
+      .limit(SEGMENT_SIZE + 1);
 
-    const ids = matchingRows.map(r => r.id);
-    
+    const totalFoundInSegment = chunkIdsQuery.length;
+    const hasNextChunk = totalFoundInSegment > SEGMENT_SIZE;
+    const chunkTotalItems = hasNextChunk ? SEGMENT_SIZE : totalFoundInSegment;
+    const nextChunkId = hasNextChunk ? chunkIdsQuery[SEGMENT_SIZE]!.id : null;
+
+    // 2. Slice the chunk for the current page
+    const pageIds = chunkIdsQuery
+      .slice(offset, offset + limit)
+      .map((row) => row.id);
+
     let pageData: Content[] = [];
-    if (ids.length > 0) {
+    if (pageIds.length > 0) {
       const rows = await this.db
         .select()
         .from(schema.contents)
-        .where(inArray(schema.contents.id, ids))
+        .where(inArray(schema.contents.id, pageIds))
         .orderBy(desc(schema.contents.createdAt));
 
       pageData = rows.map(content => ({
@@ -446,9 +448,9 @@ export class ContentServiceImpl implements IContentService {
     return {
       data: pageData,
       metadata: {
-        nextChunkId: null,
-        chunkSize: limit,
-        chunkTotalItems: totalFound,
+        nextChunkId,
+        chunkSize: SEGMENT_SIZE,
+        chunkTotalItems,
         limit,
         offset,
       },
