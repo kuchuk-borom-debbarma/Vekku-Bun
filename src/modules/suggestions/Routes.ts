@@ -64,16 +64,14 @@ suggestionRouter.post("/generate", async (c) => {
   const suggestionService = getContentTagSuggestionService();
   const contentService = getContentService();
 
-  // 1. If contentId is provided, check CACHE first (Mode-specific)
-  if (contentId) {
-    const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode);
-    if (cached) {
-      console.log(`[Suggestions] Returning ${mode} from Cache`);
-      return c.json(cached);
-    }
+  // 1. Check CACHE first (either by ID or Text Hash)
+  const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, text);
+  if (cached) {
+    console.log(`[Suggestions] Cache HIT for ${mode} (ID: ${contentId || 'TextHash'})`);
+    return c.json(cached);
   }
 
-  // 2. Cache Miss or New Text -> Enforce AI Rate Limit (Independent per mode)
+  // 2. Cache Miss -> Enforce AI Rate Limit
   const limiter = getAiRatelimit();
   if (limiter) {
     // Unique identifier per user + mode ensures separate 3/min limits

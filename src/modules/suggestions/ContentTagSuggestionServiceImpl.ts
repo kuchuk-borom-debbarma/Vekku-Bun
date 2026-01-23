@@ -184,12 +184,15 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       }))
     };
 
-    // 3. Cache based on mode
-    if (data.contentId) {
-      const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, data.userId, data.contentId);
-      // AI results are expensive, cache for 24 hours
-      await CacheServiceUpstash.set(cacheKey, result, 60 * 60 * 24);
-    }
+    // 3. Cache results
+    // If contentId exists, use it as the primary key.
+    // If not (e.g. creating content), use a hash of the text to prevent repeat 429s for same input.
+    const anchor = data.contentId || `hash:${await this.hashText(data.content)}`;
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, data.userId, anchor);
+    
+    // Cache for 24 hours if it's a real content ID, or 10 minutes if it's just a text hash
+    const ttl = data.contentId ? 60 * 60 * 24 : 60 * 10;
+    await CacheServiceUpstash.set(cacheKey, result, ttl);
 
     return result;
   }
@@ -198,8 +201,19 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     contentId: string,
     userId: string,
     mode: "tags" | "keywords" | "both" = "both",
+    text?: string,
   ): Promise<ContentSuggestions | null> {
-    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, userId, contentId);
+    const anchor = contentId || (text ? `hash:${await this.hashText(text)}` : null);
+    if (!anchor) return null;
+
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, userId, anchor);
     return await CacheServiceUpstash.get<ContentSuggestions>(cacheKey);
+  }
+
+  private async hashText(text: string): Promise<string> {
+    const msgUint8 = new TextEncoder().encode(text);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
   }
 }
