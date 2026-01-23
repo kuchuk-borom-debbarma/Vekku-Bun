@@ -59,19 +59,9 @@ export class TagServiceImpl implements ITagService {
         `);
       }
 
-      console.log(`[TagService] Tag Created: ${tag.name} (${tag.id})`);
-      const userTag = {
-        id: tag.id,
-        name: tag.name,
-        semantic: tag.semantic,
-        userId: tag.userId,
-        createdAt: tag.createdAt,
-        updatedAt: tag.updatedAt,
-      };
-
-      // Invalidate List Cache
+      // Invalidate Caches
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "list", tag.userId, "*");
+      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", tag.userId, "*");
       const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", tag.userId, "*");
       
       await Promise.all([
@@ -153,7 +143,11 @@ export class TagServiceImpl implements ITagService {
 
       // Invalidate Caches
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", userId, "*");
-      await CacheServiceUpstash.delByPattern(listCachePattern);
+      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", userId, "*");
+      await Promise.all([
+        CacheServiceUpstash.delByPattern(listCachePattern),
+        CacheServiceUpstash.delByPattern(suggestionCachePattern),
+      ]);
 
       // Publish Events
       for (const tag of results) {
@@ -241,9 +235,9 @@ export class TagServiceImpl implements ITagService {
         updatedAt: tag.updatedAt,
       };
 
-      // Invalidate List Cache
+      // Invalidate Caches
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "list", tag.userId, "*");
+      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", tag.userId, "*");
       const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", tag.userId, "*");
       
       await Promise.all([
@@ -292,9 +286,13 @@ export class TagServiceImpl implements ITagService {
         WHERE id = ${data.userId}
       `);
 
-      // Invalidate List Cache
+      // Invalidate Caches
       const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", data.userId, "*");
-      await CacheServiceUpstash.delByPattern(listCachePattern);
+      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", data.userId, "*");
+      await Promise.all([
+        CacheServiceUpstash.delByPattern(listCachePattern),
+        CacheServiceUpstash.delByPattern(suggestionCachePattern),
+      ]);
 
       // Publish Event
       try {

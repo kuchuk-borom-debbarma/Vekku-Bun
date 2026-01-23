@@ -46,10 +46,11 @@ suggestionRouter.use("*", async (c, next) => {
 // GET Suggestions for Content (Cached Only)
 suggestionRouter.get("/content/:contentId", async (c) => {
   const contentId = c.req.param("contentId");
+  const mode = (c.req.query("mode") as "tags" | "keywords" | "both") || "both";
   const user = c.get("user");
   const suggestionService = getContentTagSuggestionService();
 
-  const result = await suggestionService.getSuggestionsForContent(contentId, user.id);
+  const result = await suggestionService.getSuggestionsForContent(contentId, user.id, mode);
   if (!result) return c.json({ existing: [], potential: [] });
   return c.json(result);
 });
@@ -58,26 +59,28 @@ suggestionRouter.get("/content/:contentId", async (c) => {
  * Unified Suggestion Generation (Cache-First)
  */
 suggestionRouter.post("/generate", async (c) => {
-  const { contentId, text } = await c.req.json();
+  const { contentId, text, mode = "both" } = await c.req.json();
   const user = c.get("user");
   const suggestionService = getContentTagSuggestionService();
   const contentService = getContentService();
 
-  // 1. If contentId is provided, check CACHE first
+  // 1. If contentId is provided, check CACHE first (Mode-specific)
   if (contentId) {
-    const cached = await suggestionService.getSuggestionsForContent(contentId, user.id);
+    const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode);
     if (cached) {
-      console.log("[Suggestions] Returning from Cache (Skip AI Rate Limit)");
+      console.log(`[Suggestions] Returning ${mode} from Cache`);
       return c.json(cached);
     }
   }
 
-  // 2. Cache Miss or New Text -> Enforce AI Rate Limit
+  // 2. Cache Miss or New Text -> Enforce AI Rate Limit (Independent per mode)
   const limiter = getAiRatelimit();
   if (limiter) {
-    const { success } = await limiter.limit(user.id);
+    // Unique identifier per user + mode ensures separate 3/min limits
+    const identifier = `${user.id}:${mode}`;
+    const { success } = await limiter.limit(identifier);
     if (!success) {
-      return c.json({ error: "AI rate limit exceeded. Please wait a minute." }, 429);
+      return c.json({ error: `AI rate limit exceeded for ${mode}. Please wait a minute.` }, 429);
     }
   }
 
@@ -98,6 +101,7 @@ suggestionRouter.post("/generate", async (c) => {
     contentId,
     userId: user.id,
     suggestionsCount: 15,
+    mode,
   });
 
   return c.json(result);

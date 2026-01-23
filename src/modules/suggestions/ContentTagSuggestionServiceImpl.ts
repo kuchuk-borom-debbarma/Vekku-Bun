@@ -125,32 +125,52 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     contentId?: string;
     userId: string;
     suggestionsCount: number;
+    mode?: "tags" | "keywords" | "both";
   }): Promise<ContentSuggestions> {
-    console.log(`[SuggestionService] Generating suggestions for user: ${data.userId}`);
+    const mode = data.mode || "both";
+    console.log(`[SuggestionService] Generating [${mode}] suggestions for user: ${data.userId}`);
+    
     const db = getDb();
     const embedder = getEmbeddingService();
 
-    const [contentEmbedding, rawKeywords] = await Promise.all([
-      embedder.generateEmbedding(data.content),
-      this.extractKeywords(data.content)
-    ]);
+    let contentEmbedding: number[] | null = null;
+    let rawKeywords: { word: string; score: number }[] = [];
+    let existingSuggestions: any[] = [];
 
-    const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(contentEmbedding)}`;
+    // 1. Generate tasks based on mode
+    const tasks = [];
+    
+    if (mode === "tags" || mode === "both") {
+      tasks.push((async () => {
+        contentEmbedding = await embedder.generateEmbedding(data.content);
+        const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(contentEmbedding)}`;
+        existingSuggestions = await db
+          .select({
+            tagId: userTags.id,
+            name: userTags.name,
+            score: distance,
+          })
+          .from(userTags)
+          .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
+          .where(eq(userTags.userId, data.userId))
+          .orderBy(distance)
+          .limit(data.suggestionsCount);
+      })());
+    }
 
-    const existingSuggestions = await db
-      .select({
-        tagId: userTags.id,
-        name: userTags.name,
-        score: distance,
-      })
-      .from(userTags)
-      .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
-      .where(eq(userTags.userId, data.userId))
-      .orderBy(distance)
-      .limit(data.suggestionsCount);
+    if (mode === "keywords" || mode === "both") {
+      tasks.push((async () => {
+        rawKeywords = await this.extractKeywords(data.content);
+      })());
+    }
 
+    await Promise.all(tasks);
+
+    // 2. Filter Keywords (Dedup against Existing if both present or keywords only)
+    // If we only extracted keywords, we don't strictly need to dedup against ALL user tags here (slow),
+    // but we should at least dedup against existingSuggestions if they were fetched.
     const existingNames = new Set(existingSuggestions.map(s => normalize(s.name)));
-    const newKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
+    const filteredKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
 
     const result: ContentSuggestions = {
       existing: existingSuggestions.map(s => ({
@@ -158,15 +178,17 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
         name: s.name,
         score: String(s.score)
       })),
-      potential: newKeywords.map(k => ({
+      potential: filteredKeywords.map(k => ({
         keyword: k.word,
         score: String(k.score)
       }))
     };
 
+    // 3. Cache based on mode
     if (data.contentId) {
-      const cacheKey = CacheServiceUpstash.generateKey("suggestions", "list", data.userId, data.contentId);
-      await CacheServiceUpstash.set(cacheKey, result);
+      const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, data.userId, data.contentId);
+      // AI results are expensive, cache for 24 hours
+      await CacheServiceUpstash.set(cacheKey, result, 60 * 60 * 24);
     }
 
     return result;
@@ -175,8 +197,9 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
   async getSuggestionsForContent(
     contentId: string,
     userId: string,
+    mode: "tags" | "keywords" | "both" = "both",
   ): Promise<ContentSuggestions | null> {
-    const cacheKey = CacheServiceUpstash.generateKey("suggestions", "list", userId, contentId);
+    const cacheKey = CacheServiceUpstash.generateKey("suggestions", mode, userId, contentId);
     return await CacheServiceUpstash.get<ContentSuggestions>(cacheKey);
   }
 }
