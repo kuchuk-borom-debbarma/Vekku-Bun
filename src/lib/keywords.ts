@@ -15,27 +15,44 @@ function cleanText(text: string): string {
  */
 export function extractCandidates(text: string, ngramRange: [number, number] = [1, 2], limit: number = 50): string[] {
   const cleaned = cleanText(text);
-  const words = cleaned.split(" ");
+  const words = cleaned.split(" ").filter(w => w.length > 0);
   const candidateCounts = new Map<string, number>();
+
+  if (words.length === 0) return [];
 
   for (let n = ngramRange[0]; n <= ngramRange[1]; n++) {
     for (let i = 0; i <= words.length - n; i++) {
       const phrase = words.slice(i, i + n);
       const phraseStr = phrase.join(" ");
       
-      // Filter: No stopwords allowed in keywords.
-      const hasStopword = phrase.some(w => STOPWORDS.has(w) || w.length < 3);
-      if (!hasStopword) {
-        candidateCounts.set(phraseStr, (candidateCounts.get(phraseStr) || 0) + 1);
+      // LENIENT FILTERING:
+      // 1. Skip if phrase is just a single character
+      if (phraseStr.length < 2) continue;
+      
+      // 2. Skip if the WHOLE phrase is a single stopword
+      if (phrase.length === 1 && STOPWORDS.has(phrase[0]!)) continue;
+
+      // 3. Skip if it's too short overall (e.g. "of")
+      if (phraseStr.length < 3 && phrase.length === 1) continue;
+
+      // 4. For bi-grams, ensure at least one word isn't a stopword
+      if (phrase.length > 1) {
+        const allStopwords = phrase.every(w => STOPWORDS.has(w));
+        if (allStopwords) continue;
       }
+
+      candidateCounts.set(phraseStr, (candidateCounts.get(phraseStr) || 0) + 1);
     }
   }
 
-  // Sort by frequency (desc)
-  const sorted = Array.from(candidateCounts.entries()).sort((a, b) => b[1] - a[1]);
+  // Sort by frequency (desc) then by length (desc) to favor longer meaningful phrases
+  const sorted = Array.from(candidateCounts.entries()).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return b[0].length - a[0].length;
+  });
   
-  // Return top N
-  return sorted.slice(0, limit).map(x => x[0]);
+  // Return top N unique phrases
+  return Array.from(new Set(sorted.slice(0, limit).map(x => x[0])));
 }
 
 /**
