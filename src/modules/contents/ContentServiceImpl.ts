@@ -96,9 +96,12 @@ export class ContentServiceImpl implements IContentService {
       WHERE id = ${data.userId}
     `);
 
-    // Invalidate Cache
-    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", data.userId, "*");
-    await CacheServiceUpstash.delByPattern(listCachePattern);
+    console.log(
+      `[ContentService] Content Created: ${content.title} (${content.id})`,
+    );
+
+    // Invalidate Caches
+    await this.invalidateUserContentCaches(data.userId);
 
     try {
       const eventBus = getEventBus();
@@ -158,11 +161,8 @@ export class ContentServiceImpl implements IContentService {
     if (!content) return null;
 
     const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", content.id);
-    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", content.userId, "*");
-    await Promise.all([
-      CacheServiceUpstash.del(detailCacheKey),
-      CacheServiceUpstash.delByPattern(listCachePattern),
-    ]);
+    await CacheServiceUpstash.del(detailCacheKey);
+    await this.invalidateUserContentCaches(content.userId);
 
     if (data.content) {
       try {
@@ -211,11 +211,8 @@ export class ContentServiceImpl implements IContentService {
       `);
 
       const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
-      const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");
-      await Promise.all([
-        CacheServiceUpstash.del(detailCacheKey),
-        CacheServiceUpstash.delByPattern(listCachePattern),
-      ]);
+      await CacheServiceUpstash.del(detailCacheKey);
+      await this.invalidateUserContentCaches(userId);
 
       return true;
     }
@@ -380,5 +377,17 @@ export class ContentServiceImpl implements IContentService {
 
     await CacheServiceUpstash.set(cacheKey, result);
     return result;
+  }
+
+  private async invalidateUserContentCaches(userId: string) {
+    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");
+    const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", userId, "*");
+    const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", userId, "*");
+
+    await Promise.all([
+      CacheServiceUpstash.delByPattern(listCachePattern),
+      CacheServiceUpstash.delByPattern(filteredListCachePattern),
+      CacheServiceUpstash.delByPattern(suggestionCachePattern),
+    ]);
   }
 }

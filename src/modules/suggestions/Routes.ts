@@ -70,16 +70,18 @@ suggestionRouter.post("/generate", async (c) => {
   const suggestionService = getContentTagSuggestionService();
   const contentService = getContentService();
 
-  // 1. Resolve Content Body
-  let body = text;
-  if (contentId && !body) {
+  // 1. Resolve Text for Analysis (Combine Title + Body if possible)
+  let textToAnalyze = text;
+  if (contentId && !textToAnalyze) {
     const content = await contentService.getContentById(contentId);
     if (!content) return c.json({ error: "Content not found" }, 404);
     if (content.userId !== user.id) return c.json({ error: "Unauthorized" }, 401);
-    body = content.body;
+    
+    // Use Title + Body for maximum context
+    textToAnalyze = `${content.title}\n\n${content.body}`;
   }
 
-  if (!body) return c.json({ error: "Text or Content ID is required" }, 400);
+  if (!textToAnalyze) return c.json({ error: "Text or Content ID is required" }, 400);
 
   // 2. CHECK GLOBAL LIMIT (10 requests / 10 seconds) - ALWAYS
   const globalLimiter = getRatelimit();
@@ -95,7 +97,7 @@ suggestionRouter.post("/generate", async (c) => {
   }
 
   // 3. Check CACHE first (always by Text Hash now for unified hits)
-  const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, body);
+  const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, textToAnalyze);
   if (cached) {
     console.log(`[Suggestions] Cache HIT for ${mode} (Anchor: TextHash)`);
     return c.json(cached);
@@ -119,7 +121,7 @@ suggestionRouter.post("/generate", async (c) => {
 
   // 5. Generate & Cache
   const result = await suggestionService.createSuggestionsForContent({
-    content: body,
+    content: textToAnalyze,
     contentId,
     userId: user.id,
     suggestionsCount: 15,

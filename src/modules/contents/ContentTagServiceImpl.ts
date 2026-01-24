@@ -35,11 +35,14 @@ export class ContentTagServiceImpl implements IContentTagService {
         };
       });
 
-      await db.insert(contentTags).values(values).onConflictDoNothing();
-
       // Invalidate Cache
       const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, data.contentId, "*");
-      await CacheServiceUpstash.delByPattern(cachePattern);
+      const filteredContentCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", data.userId, "*");
+      
+      await Promise.all([
+        CacheServiceUpstash.delByPattern(cachePattern),
+        CacheServiceUpstash.delByPattern(filteredContentCachePattern),
+      ]);
 
       return true;
     } catch (err) {
@@ -116,7 +119,12 @@ export class ContentTagServiceImpl implements IContentTagService {
 
       // Invalidate Cache
       const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, data.contentId, "*");
-      await CacheServiceUpstash.delByPattern(cachePattern);
+      const filteredContentCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", data.userId, "*");
+      
+      await Promise.all([
+        CacheServiceUpstash.delByPattern(cachePattern),
+        CacheServiceUpstash.delByPattern(filteredContentCachePattern),
+      ]);
 
       return true;
     } catch (err) {

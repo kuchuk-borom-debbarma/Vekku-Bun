@@ -70,15 +70,7 @@ export class TagServiceImpl implements ITagService {
       };
 
       // Invalidate Caches
-      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", tag.userId, "*");
-      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", tag.userId, "*");
-      
-      await Promise.all([
-        CacheServiceUpstash.delByPattern(listCachePattern),
-        CacheServiceUpstash.delByPattern(suggestionCachePattern),
-        CacheServiceUpstash.delByPattern(contentTagsCachePattern),
-      ]);
+      await this.invalidateUserTagCaches(tag.userId);
 
       /**
        * EVENT-DRIVEN ARCHITECTURE (Asynchronous Learning)
@@ -152,12 +144,7 @@ export class TagServiceImpl implements ITagService {
       }
 
       // Invalidate Caches
-      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", userId, "*");
-      await Promise.all([
-        CacheServiceUpstash.delByPattern(listCachePattern),
-        CacheServiceUpstash.delByPattern(suggestionCachePattern),
-      ]);
+      await this.invalidateUserTagCaches(userId);
 
       // Publish Events
       for (const tag of results) {
@@ -246,15 +233,7 @@ export class TagServiceImpl implements ITagService {
       };
 
       // Invalidate Caches
-      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", tag.userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", tag.userId, "*");
-      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", tag.userId, "*");
-      
-      await Promise.all([
-        CacheServiceUpstash.delByPattern(listCachePattern),
-        CacheServiceUpstash.delByPattern(suggestionCachePattern),
-        CacheServiceUpstash.delByPattern(contentTagsCachePattern),
-      ]);
+      await this.invalidateUserTagCaches(tag.userId);
 
       // Publish Event
       try {
@@ -297,15 +276,7 @@ export class TagServiceImpl implements ITagService {
       `);
 
       // Invalidate Caches
-      const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", data.userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", data.userId, "*");
-      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, "*");
-      
-      await Promise.all([
-        CacheServiceUpstash.delByPattern(listCachePattern),
-        CacheServiceUpstash.delByPattern(suggestionCachePattern),
-        CacheServiceUpstash.delByPattern(contentTagsCachePattern),
-      ]);
+      await this.invalidateUserTagCaches(data.userId);
 
       // Publish Event
       try {
@@ -532,5 +503,19 @@ export class TagServiceImpl implements ITagService {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
+  }
+
+  private async invalidateUserTagCaches(userId: string) {
+    const listCachePattern = CacheServiceUpstash.generateKey("tags", "list", userId, "*");
+    const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", userId, "*");
+    const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", userId, "*");
+    const filteredContentCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", userId, "*");
+
+    await Promise.all([
+      CacheServiceUpstash.delByPattern(listCachePattern),
+      CacheServiceUpstash.delByPattern(suggestionCachePattern),
+      CacheServiceUpstash.delByPattern(contentTagsCachePattern),
+      CacheServiceUpstash.delByPattern(filteredContentCachePattern),
+    ]);
   }
 }
