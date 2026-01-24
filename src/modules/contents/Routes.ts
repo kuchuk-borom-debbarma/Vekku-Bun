@@ -40,6 +40,38 @@ contentRouter.use("*", async (c, next) => {
   await next();
 });
 
+// Preview YouTube Content (Fetch Title & Transcript)
+contentRouter.post("/youtube/preview", async (c) => {
+  const { url } = await c.req.json();
+  
+  if (!url) {
+    return c.json({ error: "URL is required" }, 400);
+  }
+
+  try {
+    // We can't use the service directly as it's not exposed via getYouTubeService in this context usually, 
+    // but looking at imports, we can import the factory.
+    // However, sticking to the pattern, we'll instantiate or import the service.
+    // I previously exported 'getYouTubeService' from '../youtube/YouTubeService'.
+    const { getYouTubeService } = await import("../youtube/YouTubeService");
+    const youtubeService = getYouTubeService();
+    
+    const videoId = youtubeService.extractVideoId(url);
+    if (!videoId) {
+      return c.json({ error: "Invalid YouTube URL" }, 400);
+    }
+
+    const data = await youtubeService.getTranscript(videoId);
+    if (!data) {
+      return c.json({ error: "Could not fetch transcript" }, 404);
+    }
+
+    return c.json({ title: data.title, transcript: data.text });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
 // Create YouTube Content
 contentRouter.post("/youtube", async (c) => {
   const data = await c.req.json();
