@@ -3,7 +3,6 @@ import { cors } from "hono/cors";
 import { tagRouter } from "./modules/tags/Routes";
 import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
-import { youtubeRouter } from "./modules/youtube/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
 import { adminRouter } from "./modules/admin/Routes";
 import { statsRouter } from "./modules/stats/Routes";
@@ -14,7 +13,6 @@ import { setEmbeddingConfig } from "./lib/embedding";
 import { setNotificationConfig } from "./lib/notification";
 import { setRedisConfig } from "./lib/redis";
 import { rateLimiter } from "./middleware/rateLimiter";
-import { setRapidApiConfig } from "./lib/rapidapi";
 
 // Initialize global event listeners
 initSuggestionListeners();
@@ -29,7 +27,6 @@ type Bindings = {
   NOTIFICATION_API_CLIENT_SECRET?: string;
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
-  RAPIDAPI_KEY?: string;
   WORKER?: string;
   GITHUB_URL?: string;
   GMAIL_URL?: string;
@@ -62,7 +59,6 @@ const createApp = (env: Bindings) => {
   app.route("/api/auth", authRouter);
   app.route("/api/tag", tagRouter);
   app.route("/api/content", contentRouter);
-  app.route("/api/youtube", youtubeRouter);
   app.route("/api/suggestions", suggestionRouter);
   app.route("/api/admin", adminRouter);
   app.route("/api/stats", statsRouter);
@@ -76,19 +72,9 @@ export default {
    * -----------------
    * This 'fetch' handler acts as the bridge between the specific runtime platform
    * (e.g., Cloudflare Workers, Bun, Node) and the application's core logic.
-   * 
-   * Its primary responsibility is Dependency Injection & Configuration:
-   * 1. Extract secrets/bindings from the platform-specific 'env' object.
-   * 2. Inject them into the application's global state or service configurations.
-   * 
-   * This allows the Service Layer (TagServiceImpl, etc.) to remain "Platform Agnostic".
-   * Services don't need to know they are running on Cloudflare; they just use the
-   * injected configuration.
    */
   fetch(request: Request, env: Bindings, ctx: any) {
     // 1. Database Injection
-    // Initialize the DB connection with the secret from the environment.
-    // This sets the singleton instance used by 'getDb()' throughout the app.
     getDb(env.DATABASE_URL);
 
     // 2. JWT Configuration Injection
@@ -116,10 +102,6 @@ export default {
       });
     }
 
-    if (env.RAPIDAPI_KEY) {
-      setRapidApiConfig({ apiKey: env.RAPIDAPI_KEY });
-    }
-
     // Polyfill ExecutionContext for Bun/Local environments
     if (!ctx) {
       ctx = {
@@ -137,16 +119,9 @@ export default {
       DATABASE_URL_SET: !!bindings.DATABASE_URL,
       JWT_SECRET_SET: !!bindings.JWT_SECRET,
       WORKER_FLAG: bindings.WORKER,
-      CF_ACCOUNT_ID: bindings.CLOUDFLARE_WORKER_ACCOUNT_ID ? "SET" : "MISSING",
-      CF_API_KEY: bindings.CLOUDFLARE_WORKER_AI_API_KEY ? "SET" : "MISSING",
     });
-
-    // 1. Database Injection
 
     const app = createApp(bindings);
     return app.fetch(request, bindings, ctx);
   },
 };
-
-//TODO make this lighter
-//TODO bug fix users can create same tags twice and this needs to be fixed
