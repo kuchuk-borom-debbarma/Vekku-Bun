@@ -93,6 +93,7 @@ suggestionRouter.post("/generate", async (c) => {
   if (limiter) {
     const identifier = `${user.id}:${mode}`;
     const { success, limit, reset, remaining } = await limiter.limit(identifier);
+    console.log(`[RateLimit] Manual AI Check - Mode: ${mode}, Identifier: ${identifier}, Success: ${success}, Remaining: ${remaining}`);
     
     // Add headers even for manual checks
     c.header("X-AI-RateLimit-Limit", limit.toString());

@@ -53,6 +53,7 @@ export const rateLimiter = async (c: Context, next: Next) => {
   const identifier = user?.id || ip;
 
   const { success, limit, reset, remaining } = await limiter.limit(identifier);
+  console.log(`[RateLimit] Global Check - User: ${user?.id || 'anon'}, IP: ${ip}, Success: ${success}, Remaining: ${remaining}`);
 
   c.header("X-RateLimit-Limit", limit.toString());
   c.header("X-RateLimit-Remaining", remaining.toString());
@@ -71,6 +72,7 @@ export const aiRateLimiter = async (c: Context, next: Next) => {
   const identifier = user?.id || ip;
 
   const { success, limit, reset, remaining } = await limiter.limit(identifier);
+  console.log(`[RateLimit] AI Check - User: ${user?.id || 'anon'}, Success: ${success}, Remaining: ${remaining}`);
 
   c.header("X-AI-RateLimit-Limit", limit.toString());
   c.header("X-AI-RateLimit-Remaining", remaining.toString());
