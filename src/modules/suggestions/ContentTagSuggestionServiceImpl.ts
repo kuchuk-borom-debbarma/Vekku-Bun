@@ -40,7 +40,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
   }
 
   private async extractKeywordsInternal(content: string): Promise<{ word: string; score: number; embedding: number[]; fromAI: boolean }[]> {
-    const limit = calculateKeywordLimit(content);
+    const limit = 40; // Increased cap for more diversity
     const ai = getAIService();
     
     let candidates: string[] = [];
@@ -57,7 +57,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       Output ONLY the tags as a comma-separated list. No numbering, no introduction, no explanation.
       
       TEXT:
-      ${content.slice(0, 3000)}`; // Increased context window for 8B model
+      ${content.slice(0, 3000)}`;
 
       const aiResponse = await ai.generateText(prompt, "You are a specialized metadata extractor. You capture full names of technologies and concepts. Your output must be a single line of comma-separated tags.");
       
@@ -101,6 +101,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     const scored = candidates.map((word, i) => {
       const cVec = candidateVectors[i]!;
+      // Return Similarity Score (1.0 is best)
       let score = docVector ? cosineSimilarity(docVector, cVec) : 0.95 - (i * 0.005);
       
       if (!isFromAI) {
@@ -112,8 +113,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     });
 
     if (isFromAI) {
-      // Return ALL AI results (no limit)
-      return scored;
+      return scored; // Return all AI results
     }
 
     // N-GRAM FALLBACK: Apply strict filtering
@@ -201,17 +201,19 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       tasks.push((async () => {
         contentEmbedding = await embedder.generateEmbedding(data.content);
         const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(contentEmbedding)}`;
+        const similarity = sql<number>`1 - (${distance})`;
+        
         existingSuggestions = await db
           .select({
             tagId: userTags.id,
             name: userTags.name,
-            score: distance,
+            score: similarity,
           })
           .from(userTags)
           .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
           .where(eq(userTags.userId, data.userId))
           .orderBy(distance)
-          .limit(data.suggestionsCount);
+          .limit(30); // Increased limit for better matching
       })());
     }
 
