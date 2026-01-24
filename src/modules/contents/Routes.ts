@@ -40,6 +40,23 @@ contentRouter.use("*", async (c, next) => {
   await next();
 });
 
+// Fetch YouTube Info (Title Only)
+contentRouter.post("/youtube/info", async (c) => {
+  const { url } = await c.req.json();
+  if (!url) return c.json({ error: "URL is required" }, 400);
+
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const res = await fetch(oembedUrl);
+    if (!res.ok) throw new Error("Failed to fetch video info");
+    
+    const data = await res.json() as any;
+    return c.json({ title: data.title });
+  } catch (error) {
+    return c.json({ error: "Could not fetch video title" }, 400);
+  }
+});
+
 // Create YouTube Content
 contentRouter.post("/youtube", async (c) => {
   const data = await c.req.json();
