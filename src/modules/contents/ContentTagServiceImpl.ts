@@ -22,6 +22,7 @@ export class ContentTagServiceImpl implements IContentTagService {
     userId: string;
   }): Promise<boolean> {
     try {
+      console.log(`[ContentTagService] Adding tags to content: ${data.contentId}, Tags: ${data.tagIds.length}`);
       if (data.tagIds.length === 0) return true;
       const db = getDb();
 
@@ -34,6 +35,9 @@ export class ContentTagServiceImpl implements IContentTagService {
           createdAt: new Date(),
         };
       });
+
+      const res = await db.insert(contentTags).values(values).onConflictDoNothing().returning();
+      console.log(`[ContentTagService] Linked ${res.length} tags to content.`);
 
       // Invalidate Cache
       const cachePattern = CacheServiceUpstash.generateKey("content-tags", "list", data.userId, data.contentId, "*");
