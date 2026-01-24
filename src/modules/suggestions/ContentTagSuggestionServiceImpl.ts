@@ -48,7 +48,6 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     // 1. Try SLM Extraction (Smart)
     try {
-      console.log("[SuggestionService] Attempting SLM-based tag extraction...");
       const prompt = `Extract exactly 15 high-quality, distinct technical tags or keywords from the following text. 
       Focus on specific technologies, architecture patterns, and core concepts. 
       Avoid conversational filler, introductory words, or generic terms.
@@ -71,7 +70,6 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
         
         if (candidates.length >= 3) {
           isFromAI = true;
-          console.log(`[SuggestionService] SLM extracted ${candidates.length} candidates.`);
         }
       }
     } catch (e) {
@@ -156,13 +154,9 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
   async learnTags(semantics: string[]): Promise<string[]> {
     if (semantics.length === 0) return [];
     
-    console.log(`[SuggestionService] Learning Semantic Concepts: ${semantics.length} items`);
     const db = getDb();
     const embedder = getEmbeddingService();
-    
     const uniqueSemantics = Array.from(new Set(semantics.map(s => normalize(s))));
-    
-    console.log(`[SuggestionService] Generating embeddings for ${uniqueSemantics.length} concepts...`);
     const embeddings = await embedder.generateEmbeddings(uniqueSemantics);
     
     const valuesToInsert = uniqueSemantics.map((semantic, i) => ({
@@ -183,7 +177,6 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
         },
       });
 
-    console.log(`[SuggestionService] Learned/Updated ${valuesToInsert.length} concepts.`);
     return valuesToInsert.map(v => v.id);
   }
 
@@ -195,8 +188,6 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     mode?: "tags" | "keywords" | "both";
   }): Promise<ContentSuggestions> {
     const mode = data.mode || "both";
-    console.log(`[SuggestionService] Generating [${mode}] suggestions for user: ${data.userId}`);
-    
     const db = getDb();
     const embedder = getEmbeddingService();
 
