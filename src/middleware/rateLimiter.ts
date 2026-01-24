@@ -13,53 +13,15 @@ const getRatelimit = () => {
     const redis = getRedisClient();
     ratelimit = new Ratelimit({
       redis: redis,
-      limiter: Ratelimit.slidingWindow(10, "10 s"), // 10 requests per 10 seconds
+      limiter: Ratelimit.slidingWindow(10, "10 s"), // 10 requests per 10 seconds (Global)
       analytics: true,
-      /**
-       * Ephemeral Cache (Memory Cache)
-       * ------------------------------
-       * Critical for serverless environments (Cloudflare Workers, Lambda).
-       * It caches block decisions in memory for a short duration, preventing
-       * unnecessary Redis calls for already blocked users or high-traffic bursts.
-       */
       ephemeralCache: new Map(), 
       prefix: "@upstash/ratelimit",
     });
     return ratelimit;
   } catch (error) {
-    // Redis not configured
     return null;
   }
-};
-
-export const rateLimiter = async (c: Context, next: Next) => {
-  const limiter = getRatelimit();
-
-  // If Rate Limiting is not configured (e.g. missing env vars), skip it (Fail Open)
-  if (!limiter) {
-    return next();
-  }
-
-  // Identify user: Prioritize User ID (if auth), otherwise IP
-  // Note: Ensure your Auth middleware runs BEFORE this if you want to limit by User ID
-  const ip = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "127.0.0.1";
-  
-  // TODO: If you want to limit by User ID, extract it here from c.get('user') or similar
-  // const userId = c.get("jwtPayload")?.sub;
-  // const identifier = userId || ip;
-  const identifier = ip;
-
-  const { success, limit, reset, remaining } = await limiter.limit(identifier);
-
-  c.header("X-RateLimit-Limit", limit.toString());
-  c.header("X-RateLimit-Remaining", remaining.toString());
-  c.header("X-RateLimit-Reset", reset.toString());
-
-  if (!success) {
-    return c.text("Too Many Requests", 429);
-  }
-
-  await next();
 };
 
 let aiRatelimit: Ratelimit | null = null;
@@ -70,7 +32,7 @@ export const getAiRatelimit = () => {
     const redis = getRedisClient();
     aiRatelimit = new Ratelimit({
       redis: redis,
-      limiter: Ratelimit.slidingWindow(3, "1 m"), // Only 3 requests per minute
+      limiter: Ratelimit.slidingWindow(3, "1 m"), // 3 requests per minute (AI intensive)
       analytics: true,
       ephemeralCache: new Map(),
       prefix: "@upstash/ai-ratelimit",
@@ -81,13 +43,32 @@ export const getAiRatelimit = () => {
   }
 };
 
+export const rateLimiter = async (c: Context, next: Next) => {
+  const limiter = getRatelimit();
+  if (!limiter) return next();
+
+  // Identify by User ID if available, otherwise IP
+  const user = c.get("user") as any;
+  const ip = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "127.0.0.1";
+  const identifier = user?.id || ip;
+
+  const { success, limit, reset, remaining } = await limiter.limit(identifier);
+
+  c.header("X-RateLimit-Limit", limit.toString());
+  c.header("X-RateLimit-Remaining", remaining.toString());
+  c.header("X-RateLimit-Reset", reset.toString());
+
+  if (!success) return c.json({ error: "Too many requests. Slow down." }, 429);
+  await next();
+};
+
 export const aiRateLimiter = async (c: Context, next: Next) => {
   const limiter = getAiRatelimit();
   if (!limiter) return next();
 
-  // Prefer User ID for AI limiting
-  const user = c.get("user");
-  const identifier = user?.id || c.req.header("CF-Connecting-IP") || "anonymous";
+  const user = c.get("user") as any;
+  const ip = c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "127.0.0.1";
+  const identifier = user?.id || ip;
 
   const { success, limit, reset, remaining } = await limiter.limit(identifier);
 
@@ -95,9 +76,6 @@ export const aiRateLimiter = async (c: Context, next: Next) => {
   c.header("X-AI-RateLimit-Remaining", remaining.toString());
   c.header("X-AI-RateLimit-Reset", reset.toString());
 
-  if (!success) {
-    return c.json({ error: "AI rate limit exceeded. Please wait a minute." }, 429);
-  }
-
+  if (!success) return c.json({ error: "AI rate limit exceeded. Please wait a minute." }, 429);
   await next();
 };

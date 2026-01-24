@@ -88,12 +88,17 @@ suggestionRouter.post("/generate", async (c) => {
     return c.json(cached);
   }
 
-  // 3. Cache Miss -> Enforce AI Rate Limit (Independent per mode)
+  // 3. Cache Miss -> Enforce AI Rate Limit (Independent per user + mode)
   const limiter = getAiRatelimit();
   if (limiter) {
-    // Unique identifier per user + mode ensures separate 3/min limits
     const identifier = `${user.id}:${mode}`;
-    const { success } = await limiter.limit(identifier);
+    const { success, limit, reset, remaining } = await limiter.limit(identifier);
+    
+    // Add headers even for manual checks
+    c.header("X-AI-RateLimit-Limit", limit.toString());
+    c.header("X-AI-RateLimit-Remaining", remaining.toString());
+    c.header("X-AI-RateLimit-Reset", reset.toString());
+
     if (!success) {
       return c.json({ error: `AI rate limit exceeded for ${mode}. Please wait a minute.` }, 429);
     } 
