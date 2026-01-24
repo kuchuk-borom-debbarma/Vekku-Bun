@@ -49,7 +49,10 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     // 1. Try SLM Extraction (Smart)
     try {
       const prompt = `Extract exactly 15 high-quality, distinct technical tags or keywords from the following text. 
-      Focus on specific technologies, architecture patterns, and core concepts. 
+      
+      CRITICAL INSTRUCTION: The first few lines are the TITLE of the content. Prioritize technologies, frameworks, and core concepts mentioned in the TITLE as they carry the most weight.
+      
+      Focus on specific technologies (e.g., "Unreal Engine", "React", "PostgreSQL"), architecture patterns, and core technical concepts. 
       Avoid conversational filler, introductory words, or generic terms.
       
       Output ONLY the tags as a comma-separated list. No numbering, no introduction, no explanation.
@@ -57,7 +60,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       TEXT:
       ${content.slice(0, 2000)}`;
 
-      const aiResponse = await ai.generateText(prompt, "You are a specialized technical metadata extractor. Your output must be a single line of comma-separated tags and nothing else.");
+      const aiResponse = await ai.generateText(prompt, "You are a specialized technical metadata extractor. You weigh the TITLE of the document more heavily than the body. Your output must be a single line of comma-separated tags and nothing else.");
       
       if (aiResponse && aiResponse.trim().length > 0) {
         const cleanedResponse = aiResponse.replace(/^(here are|technical tags|the following|tags|keywords|extracted tags)(.*?):/i, "").trim();
