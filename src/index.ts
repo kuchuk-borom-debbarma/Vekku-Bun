@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { tagRouter } from "./modules/tags/Routes";
 import { authRouter } from "./modules/auth/Routes";
 import { contentRouter } from "./modules/contents/Routes";
+import { youtubeRouter } from "./modules/youtube/Routes";
 import { suggestionRouter } from "./modules/suggestions/Routes";
 import { adminRouter } from "./modules/admin/Routes";
 import { statsRouter } from "./modules/stats/Routes";
@@ -13,6 +14,8 @@ import { setEmbeddingConfig } from "./lib/embedding";
 import { setNotificationConfig } from "./lib/notification";
 import { setRedisConfig } from "./lib/redis";
 import { rateLimiter } from "./middleware/rateLimiter";
+
+import { setApifyConfig } from "./lib/apify";
 
 // Initialize global event listeners
 initSuggestionListeners();
@@ -27,6 +30,7 @@ type Bindings = {
   NOTIFICATION_API_CLIENT_SECRET?: string;
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
+  APIFY_API_TOKEN?: string;
   WORKER?: string;
   GITHUB_URL?: string;
   GMAIL_URL?: string;
@@ -59,6 +63,7 @@ const createApp = (env: Bindings) => {
   app.route("/api/auth", authRouter);
   app.route("/api/tag", tagRouter);
   app.route("/api/content", contentRouter);
+  app.route("/api/youtube", youtubeRouter);
   app.route("/api/suggestions", suggestionRouter);
   app.route("/api/admin", adminRouter);
   app.route("/api/stats", statsRouter);
@@ -110,6 +115,11 @@ export default {
         url: env.UPSTASH_REDIS_REST_URL,
         token: env.UPSTASH_REDIS_REST_TOKEN,
       });
+    }
+
+    // Initialize Apify Config
+    if (env.APIFY_API_TOKEN) {
+      setApifyConfig({ apiToken: env.APIFY_API_TOKEN });
     }
 
     // Polyfill ExecutionContext for Bun/Local environments
