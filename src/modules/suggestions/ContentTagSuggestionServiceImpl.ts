@@ -48,18 +48,18 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     // 1. Try SLM Extraction (Smart)
     try {
-      const prompt = `Extract exactly 15 high-quality, distinct tags or keywords from the following text. 
+      const prompt = `Extract all relevant, high-quality technical and subject-specific tags or keywords from the following text. 
       
-      CRITICAL INSTRUCTION: The first few lines are the TITLE of the content. Prioritize concepts, names, and subjects mentioned in the TITLE as they carry the most significance.
+      CRITICAL INSTRUCTION: The first line(s) are the TITLE. You MUST extract any multi-word entities, technologies, or subjects mentioned in the TITLE (e.g., "Unreal Engine 5", "Spring Boot", "Load Balancer"). Do NOT break them into single words.
       
-      Focus on core entities and primary subjects. Avoid conversational filler, introductory words, or generic meta-terms.
+      Focus on core entities and primary subjects. Avoid conversational filler or generic meta-terms.
       
       Output ONLY the tags as a comma-separated list. No numbering, no introduction, no explanation.
       
       TEXT:
-      ${content.slice(0, 2000)}`;
+      ${content.slice(0, 3000)}`; // Increased context window for 8B model
 
-      const aiResponse = await ai.generateText(prompt, "You are a specialized metadata extractor. You weigh the TITLE of the document much more heavily than the body. Your output must be a single line of comma-separated tags and nothing else.");
+      const aiResponse = await ai.generateText(prompt, "You are a specialized metadata extractor. You capture full names of technologies and concepts. Your output must be a single line of comma-separated tags.");
       
       if (aiResponse && aiResponse.trim().length > 0) {
         const cleanedResponse = aiResponse.replace(/^(here are|technical tags|the following|tags|keywords|extracted tags)(.*?):/i, "").trim();
@@ -68,7 +68,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
           .split(",")
           .map(t => t.replace(/^\d+\.\s*/, "").trim())
           .map(t => t.replace(/["']/g, ""))
-          .filter(t => t.length > 2 && t.length < 40 && !t.toLowerCase().includes("high quality"));
+          .filter(t => t.length > 2 && t.length < 50 && !t.toLowerCase().includes("high quality"));
         
         if (candidates.length >= 3) {
           isFromAI = true;
@@ -101,11 +101,8 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     const scored = candidates.map((word, i) => {
       const cVec = candidateVectors[i]!;
-      // If from AI, we trust the AI's selection and don't need to score similarity to doc for filtering
-      // We just assign a high default score for ranking
-      let score = docVector ? cosineSimilarity(docVector, cVec) : 0.9 - (i * 0.01);
+      let score = docVector ? cosineSimilarity(docVector, cVec) : 0.95 - (i * 0.005);
       
-      // Only apply boosting/logic if NOT from AI
       if (!isFromAI) {
         const wordCount = word.split(" ").length;
         if (wordCount > 1) score *= (1 + (wordCount - 1) * 0.05);
@@ -115,8 +112,8 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     });
 
     if (isFromAI) {
-      // TRUST THE AI: No similarity thresholding or sub-phrase suppression
-      return scored.slice(0, limit);
+      // Return ALL AI results (no limit)
+      return scored;
     }
 
     // N-GRAM FALLBACK: Apply strict filtering
