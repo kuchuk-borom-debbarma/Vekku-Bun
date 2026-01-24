@@ -14,6 +14,7 @@ import { setEmbeddingConfig } from "./lib/embedding";
 import { setNotificationConfig } from "./lib/notification";
 import { setRedisConfig } from "./lib/redis";
 import { rateLimiter } from "./middleware/rateLimiter";
+import { setRapidApiConfig } from "./lib/rapidapi";
 
 // Initialize global event listeners
 initSuggestionListeners();
@@ -28,6 +29,7 @@ type Bindings = {
   NOTIFICATION_API_CLIENT_SECRET?: string;
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
+  RAPIDAPI_KEY?: string;
   WORKER?: string;
   GITHUB_URL?: string;
   GMAIL_URL?: string;
@@ -112,6 +114,10 @@ export default {
         url: env.UPSTASH_REDIS_REST_URL,
         token: env.UPSTASH_REDIS_REST_TOKEN,
       });
+    }
+
+    if (env.RAPIDAPI_KEY) {
+      setRapidApiConfig({ apiKey: env.RAPIDAPI_KEY });
     }
 
     // Polyfill ExecutionContext for Bun/Local environments
