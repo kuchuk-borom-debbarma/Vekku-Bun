@@ -8,6 +8,11 @@
     - [x] Implement unified generation endpoint with KeyBERT + Vector search.
     - [x] Transition to Redis-only caching for suggestions.
     - [x] Implement strict AI-specific rate limiting.
+- [x] **YouTube & SLM Integration**
+    - [x] Implement Manual Transcription flow (Copy-Paste) to bypass IP blocks.
+    - [x] Integrate Cloudflare Workers AI (phi-3-mini) for context-aware extraction.
+    - [x] Implement tiered rate limiting (Generous cache / Strict AI).
+    - [x] Create specialized YouTube content view and auto-title fetching.
 - [ ] **Advanced Filtering & Search**
     - [ ] Implement **Bloom Filter** for fast membership checks (e.g., checking if a tag name already exists before DB query).
 - [ ] **Refactor: Transactions**
