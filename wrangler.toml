@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 WORKER = "true"
 CLOUDFLARE_AI_MODEL = "@cf/baai/bge-small-en-v1.5"
-FRONTEND_URL = "https://vekku-reactjs.vercel.app"
+CLOUDFLARE_SLM_MODEL = "@cf/microsoft/phi-3-mini-4k-instruct"
 EMBEDDING_THRESHOLD = "0.4"
 EMBEDDING_MATCH_COUNT = "10"
 GITHUB_URL = "https://github.com/kuchuk-borom-debbarma"

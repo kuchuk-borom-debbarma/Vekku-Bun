@@ -9,7 +9,7 @@ import { statsRouter } from "./modules/stats/Routes";
 import { initSuggestionListeners } from "./modules/suggestions";
 import { getDb } from "./db";
 import { setJwtSecret } from "./lib/jwt";
-import { setEmbeddingConfig } from "./lib/embedding";
+import { setAIConfig } from "./lib/ai";
 import { setNotificationConfig } from "./lib/notification";
 import { setRedisConfig } from "./lib/redis";
 import { rateLimiter } from "./middleware/rateLimiter";
@@ -23,6 +23,7 @@ type Bindings = {
   CLOUDFLARE_WORKER_ACCOUNT_ID?: string;
   CLOUDFLARE_WORKER_AI_API_KEY?: string;
   CLOUDFLARE_AI_MODEL?: string;
+  CLOUDFLARE_SLM_MODEL?: string;
   NOTIFICATION_API_CLIENT_ID?: string;
   NOTIFICATION_API_CLIENT_SECRET?: string;
   UPSTASH_REDIS_REST_URL?: string;
@@ -82,11 +83,12 @@ export default {
       setJwtSecret(env.JWT_SECRET);
     }
 
-    // Initialize Embedding Config
-    setEmbeddingConfig({
+    // Initialize AI Config
+    setAIConfig({
       accountId: env.CLOUDFLARE_WORKER_ACCOUNT_ID,
       apiKey: env.CLOUDFLARE_WORKER_AI_API_KEY,
-      model: env.CLOUDFLARE_AI_MODEL,
+      embeddingModel: env.CLOUDFLARE_AI_MODEL,
+      slmModel: env.CLOUDFLARE_SLM_MODEL,
     });
     // Initialize Notification Config
     setNotificationConfig({

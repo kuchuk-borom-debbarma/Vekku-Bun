@@ -4,6 +4,7 @@ import {
   tagEmbeddings,
   userTags,
 } from "../../db/schema";
+import { getAIService } from "../../lib/ai";
 import { getEmbeddingService } from "../../lib/embedding";
 import { generateUUID, normalize } from "../../lib/uuid";
 import type {
@@ -40,8 +41,40 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
   private async extractKeywordsInternal(content: string): Promise<{ word: string; score: number; embedding: number[] }[]> {
     const limit = calculateKeywordLimit(content);
-    // Pre-filter candidates by TF to save API calls (max 50)
-    const candidates = extractCandidates(content, [1, 2], 50);
+    const ai = getAIService();
+    
+    let candidates: string[] = [];
+
+    // 1. Try SLM Extraction (Smart)
+    try {
+      console.log("[SuggestionService] Attempting SLM-based tag extraction...");
+      const prompt = `Extract 10 high-quality, distinct technical tags or keywords from the following text. 
+      Focus on core concepts, technologies, and specific subjects. 
+      Avoid generic words like "video", "introduction", or "guide". 
+      Return ONLY a comma-separated list of tags.
+      
+      TEXT:
+      ${content.slice(0, 2000)}`; // Slice to stay within token limits
+
+      const aiResponse = await ai.generateText(prompt, "You are a professional technical content classifier. Output only a comma-separated list.");
+      
+      if (aiResponse && aiResponse.trim().length > 0) {
+        // Clean the AI response (it might include numbering or noise)
+        candidates = aiResponse
+          .split(",")
+          .map(t => t.replace(/^\d+\.\s*/, "").trim()) // Remove leading "1. " etc.
+          .filter(t => t.length > 2 && t.length < 30);
+        
+        console.log(`[SuggestionService] SLM extracted ${candidates.length} candidates: ${candidates.join(", ")}`);
+      }
+    } catch (e) {
+      console.warn("[SuggestionService] SLM extraction failed, falling back to N-grams:", e);
+    }
+
+    // 2. Fallback to N-grams if SLM failed or returned too few
+    if (candidates.length < 3) {
+      candidates = extractCandidates(content, [1, 3], 50);
+    }
     
     if (candidates.length === 0) return [];
 
