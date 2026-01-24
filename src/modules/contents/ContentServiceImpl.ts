@@ -10,13 +10,64 @@ import {
 } from "./ContentService";
 import { getEventBus, TOPICS } from "../../lib/events";
 import { CacheServiceUpstash } from "../../lib/cache";
+import { getYouTubeService } from "../youtube/YouTubeService";
 
 const SEGMENT_SIZE = 20;
 
 export class ContentServiceImpl implements IContentService {
   constructor(private db: NeonHttpDatabase<typeof schema>) {}
+  
+  async createYoutubeContent(data: {
+    url: string;
+    userId: string;
+    userDefineddesc?: string;
+    userDefinedTitle?: string;
+  }): Promise<Content | null> {
+    const youtubeService = getYouTubeService();
+    const videoId = youtubeService.extractVideoId(data.url);
+    
+    if (!videoId) {
+      throw new Error("Invalid YouTube URL");
+    }
 
-  async createContent(
+    const transcriptData = await youtubeService.getTranscript(videoId);
+    if (!transcriptData) {
+      throw new Error("Failed to fetch transcript for this video.");
+    }
+
+    // 1. Determine Title
+    const finalTitle = data.userDefinedTitle || transcriptData.title;
+
+    // 2. Construct Body for Embedding Priority
+    // If user provided a description, put it first to give it weight in the embedding context
+    let finalBody = "";
+    if (data.userDefineddesc) {
+      finalBody += `${data.userDefineddesc}\n\n`;
+    }
+    finalBody += transcriptData.text;
+
+    // 3. Prepare Metadata
+    const metadata = {
+      youtubeUrl: data.url,
+      videoId: videoId,
+      originalTitle: transcriptData.title,
+      userDescription: data.userDefineddesc || null,
+      transcriptionLength: transcriptData.text.length,
+      // We store the raw transcription in metadata too if needed for display separately from body
+      transcription: transcriptData.text 
+    };
+
+    // 4. Create Content Record
+    return this.createContentInternal({
+      title: finalTitle,
+      body: finalBody,
+      contentType: ContentType.YOUTUBE_VIDEO,
+      userId: data.userId,
+      metadata: metadata,
+    });
+  }
+
+  async createTextContent(
     data: {
       title: string;
       content: string;
@@ -25,9 +76,28 @@ export class ContentServiceImpl implements IContentService {
     },
     ctx?: { waitUntil: (promise: Promise<any>) => void },
   ): Promise<Content | null> {
-    //validation
-    if (!data.title || !data.content || !data.userId) {
-      throw new Error("Invalid data");
+    return this.createContentInternal({
+        title: data.title,
+        body: data.content,
+        contentType: data.contentType,
+        userId: data.userId,
+        metadata: {}, // Empty metadata for text content
+    }, ctx);
+  }
+
+  /**
+   * Internal helper to handle the common DB insertion, cache invalidation, and event publishing
+   */
+  private async createContentInternal(data: {
+      title: string;
+      body: string;
+      contentType: ContentType;
+      userId: string;
+      metadata: any;
+  }, ctx?: { waitUntil: (promise: Promise<any>) => void }): Promise<Content | null> {
+    // Validation
+    if (!data.title || !data.body || !data.userId) {
+        throw new Error("Invalid data");
     }
 
     const result = await this.db
@@ -35,9 +105,10 @@ export class ContentServiceImpl implements IContentService {
       .values({
         id: generateUUID(),
         title: data.title,
-        body: data.content,
+        body: data.body,
         contentType: data.contentType,
         userId: data.userId,
+        metadata: data.metadata,
       })
       .returning();
 
@@ -46,10 +117,10 @@ export class ContentServiceImpl implements IContentService {
 
     // Atomic increment of contentCount in user metadata
     await this.db.execute(sql`
-      UPDATE users 
+      UPDATE users
       SET metadata = jsonb_set(
-        metadata, 
-        '{contentCount}', 
+        metadata,
+        '{contentCount}',
         (COALESCE((metadata->>'contentCount')::int, 0) + 1)::text::jsonb
       )
       WHERE id = ${data.userId}
@@ -60,11 +131,21 @@ export class ContentServiceImpl implements IContentService {
     );
 
     // Invalidate List Cache
-    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", data.userId, "*");
-    const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", data.userId, "*");
+    const listCachePattern = CacheServiceUpstash.generateKey(
+      "contents",
+      "list",
+      data.userId,
+      "*",
+    );
+    const filteredListCachePattern = CacheServiceUpstash.generateKey(
+      "contents",
+      "list-filtered",
+      data.userId,
+      "*",
+    );
     await Promise.all([
       CacheServiceUpstash.delByPattern(listCachePattern),
-      CacheServiceUpstash.delByPattern(filteredListCachePattern)
+      CacheServiceUpstash.delByPattern(filteredListCachePattern),
     ]);
 
     // Trigger Event-Driven Suggestions
@@ -73,8 +154,6 @@ export class ContentServiceImpl implements IContentService {
       console.log(
         `[ContentService] Publishing CONTENT.CREATED event for: ${content.id}`,
       );
-      // We don't await here to return to the user faster.
-      // If ctx is provided, eventBus.publish will use ctx.waitUntil internally.
       eventBus.publish(
         TOPICS.CONTENT.CREATED,
         {
@@ -99,6 +178,7 @@ export class ContentServiceImpl implements IContentService {
       body: content.body,
       userId: content.userId,
       contentType: content.contentType as ContentType,
+      metadata: content.metadata,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
@@ -144,10 +224,29 @@ export class ContentServiceImpl implements IContentService {
     );
 
     // Invalidate Caches
-    const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", content.id);
-    const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", content.userId, "*");
-    const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", content.userId, "*");
-    const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", content.userId, content.id);
+    const detailCacheKey = CacheServiceUpstash.generateKey(
+      "contents",
+      "detail",
+      content.id,
+    );
+    const listCachePattern = CacheServiceUpstash.generateKey(
+      "contents",
+      "list",
+      content.userId,
+      "*",
+    );
+    const filteredListCachePattern = CacheServiceUpstash.generateKey(
+      "contents",
+      "list-filtered",
+      content.userId,
+      "*",
+    );
+    const suggestionCachePattern = CacheServiceUpstash.generateKey(
+      "suggestions",
+      "*",
+      content.userId,
+      content.id,
+    );
     await Promise.all([
       CacheServiceUpstash.del(detailCacheKey),
       CacheServiceUpstash.delByPattern(listCachePattern),
@@ -187,6 +286,7 @@ export class ContentServiceImpl implements IContentService {
       body: content.body,
       userId: content.userId,
       contentType: content.contentType as ContentType,
+      metadata: content.metadata,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
@@ -203,22 +303,46 @@ export class ContentServiceImpl implements IContentService {
     if (result.length > 0) {
       // Atomic decrement of contentCount
       await this.db.execute(sql`
-        UPDATE users 
+        UPDATE users
         SET metadata = jsonb_set(
-          metadata, 
-          '{contentCount}', 
+          metadata,
+          '{contentCount}',
           (GREATEST(COALESCE((metadata->>'contentCount')::int, 0) - 1, 0))::text::jsonb
         )
         WHERE id = ${userId}
       `);
 
       // Invalidate Caches
-      const detailCacheKey = CacheServiceUpstash.generateKey("contents", "detail", id);
-      const listCachePattern = CacheServiceUpstash.generateKey("contents", "list", userId, "*");
-      const filteredListCachePattern = CacheServiceUpstash.generateKey("contents", "list-filtered", userId, "*");
-      const suggestionCachePattern = CacheServiceUpstash.generateKey("suggestions", "*", userId, id);
-      const contentTagsCachePattern = CacheServiceUpstash.generateKey("content-tags", "list", id, "*");
-      
+      const detailCacheKey = CacheServiceUpstash.generateKey(
+        "contents",
+        "detail",
+        id,
+      );
+      const listCachePattern = CacheServiceUpstash.generateKey(
+        "contents",
+        "list",
+        userId,
+        "*",
+      );
+      const filteredListCachePattern = CacheServiceUpstash.generateKey(
+        "contents",
+        "list-filtered",
+        userId,
+        "*",
+      );
+      const suggestionCachePattern = CacheServiceUpstash.generateKey(
+        "suggestions",
+        "*",
+        userId,
+        id,
+      );
+      const contentTagsCachePattern = CacheServiceUpstash.generateKey(
+        "content-tags",
+        "list",
+        id,
+        "*",
+      );
+
       await Promise.all([
         CacheServiceUpstash.del(detailCacheKey),
         CacheServiceUpstash.delByPattern(listCachePattern),
@@ -259,6 +383,7 @@ export class ContentServiceImpl implements IContentService {
       body: content.body,
       userId: content.userId,
       contentType: content.contentType as ContentType,
+      metadata: content.metadata,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
@@ -349,6 +474,7 @@ export class ContentServiceImpl implements IContentService {
           body: content.body,
           userId: content.userId,
           contentType: content.contentType as ContentType,
+          metadata: content.metadata,
           createdAt: content.createdAt,
           updatedAt: content.updatedAt,
         }));
@@ -386,20 +512,29 @@ export class ContentServiceImpl implements IContentService {
       limit,
       offset,
     );
-    const cached = await CacheServiceUpstash.get<ChunkPaginationData<Content>>(cacheKey);
+    const cached =
+      await CacheServiceUpstash.get<ChunkPaginationData<Content>>(cacheKey);
     if (cached) return cached;
 
     if (tagIds.length === 0) {
       return {
         data: [],
-        metadata: { nextChunkId: null, chunkSize: limit, chunkTotalItems: 0, limit, offset },
+        metadata: {
+          nextChunkId: null,
+          chunkSize: limit,
+          chunkTotalItems: 0,
+          limit,
+          offset,
+        },
       };
     }
 
     if (offset < 0) throw new Error("Offset cannot be negative.");
     if (limit < 1) throw new Error("Limit must be at least 1.");
     if (offset >= SEGMENT_SIZE) {
-      throw new Error(`Offset (${offset}) cannot equal or exceed chunk size (${SEGMENT_SIZE}).`);
+      throw new Error(
+        `Offset (${offset}) cannot equal or exceed chunk size (${SEGMENT_SIZE}).`,
+      );
     }
 
     // 1. Resolve Cursor for chunking
@@ -408,7 +543,12 @@ export class ContentServiceImpl implements IContentService {
       const [cursorContent] = await this.db
         .select({ createdAt: schema.contents.createdAt })
         .from(schema.contents)
-        .where(and(eq(schema.contents.id, chunkId), eq(schema.contents.userId, userId)))
+        .where(
+          and(
+            eq(schema.contents.id, chunkId),
+            eq(schema.contents.userId, userId),
+          ),
+        )
         .limit(1);
 
       if (cursorContent) {
@@ -423,17 +563,25 @@ export class ContentServiceImpl implements IContentService {
     const chunkIdsQuery = await this.db
       .select({ id: schema.contentTags.contentId })
       .from(schema.contentTags)
-      .innerJoin(schema.contents, eq(schema.contentTags.contentId, schema.contents.id))
+      .innerJoin(
+        schema.contents,
+        eq(schema.contentTags.contentId, schema.contents.id),
+      )
       .where(
         and(
           eq(schema.contentTags.userId, userId),
           inArray(schema.contentTags.tagId, tagIds),
-          cursorCondition
-        )
+          cursorCondition,
+        ),
       )
       .groupBy(schema.contentTags.contentId, schema.contents.createdAt)
-      .having(sql`count(distinct ${schema.contentTags.tagId}) = ${tagIds.length}`)
-      .orderBy(desc(schema.contents.createdAt), desc(schema.contentTags.contentId))
+      .having(
+        sql`count(distinct ${schema.contentTags.tagId}) = ${tagIds.length}`,
+      )
+      .orderBy(
+        desc(schema.contents.createdAt),
+        desc(schema.contentTags.contentId),
+      )
       .limit(SEGMENT_SIZE + 1);
 
     const totalFoundInSegment = chunkIdsQuery.length;
@@ -463,6 +611,7 @@ export class ContentServiceImpl implements IContentService {
           body: content.body,
           userId: content.userId,
           contentType: content.contentType as ContentType,
+          metadata: content.metadata,
           createdAt: content.createdAt,
           updatedAt: content.updatedAt,
         }));

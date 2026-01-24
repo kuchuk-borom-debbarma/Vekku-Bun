@@ -40,6 +40,44 @@ contentRouter.use("*", async (c, next) => {
   await next();
 });
 
+// Create YouTube Content
+contentRouter.post("/youtube", async (c) => {
+  const data = await c.req.json();
+  const user = c.get("user");
+  const contentService = getContentService();
+
+  if (!data.url) {
+    return c.json({ error: "URL is required" }, 400);
+  }
+
+  try {
+    const result = await contentService.createYoutubeContent({
+      url: data.url,
+      userId: user.id,
+      userDefinedTitle: data.title, // Map 'title' from frontend to 'userDefinedTitle'
+      userDefineddesc: data.description, // Map 'description' from frontend to 'userDefineddesc'
+    });
+
+    // If tags are provided, link them (consistent with text content creation)
+    if (result && data.tagIds && Array.isArray(data.tagIds) && data.tagIds.length > 0) {
+       const contentTagService = getContentTagService();
+       try {
+         await contentTagService.addTagsToContent({
+           contentId: result.id,
+           tagIds: data.tagIds,
+           userId: user.id,
+         });
+       } catch (tagError) {
+         console.error("Failed to link tags during YouTube content creation:", tagError);
+       }
+    }
+
+    return c.json(result, 201);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
 // Create Content
 contentRouter.post("/", async (c) => {
   const data = await c.req.json();
@@ -47,7 +85,7 @@ contentRouter.post("/", async (c) => {
   const contentService = getContentService();
 
   try {
-    const result = await contentService.createContent(
+    const result = await contentService.createTextContent(
       {
         title: data.title,
         content: data.content,
@@ -96,7 +134,7 @@ contentRouter.get("/by-tags", async (c) => {
     return c.json({ error: "tagIds query parameter is required" }, 400);
   }
 
-  const tagIds = tagIdsStr.split(",").filter(id => id.trim().length > 0);
+  const tagIds = tagIdsStr.split(",").filter((id) => id.trim().length > 0);
   const contentService = getContentService();
 
   try {
@@ -105,7 +143,7 @@ contentRouter.get("/by-tags", async (c) => {
       tagIds,
       limit,
       offset,
-      chunkId
+      chunkId,
     );
     return c.json(result);
   } catch (error) {
@@ -234,11 +272,14 @@ contentRouter.post("/:id/potential", async (c) => {
   }
 
   const contentTagService = getContentTagService();
-  const success = await contentTagService.addKeywordsToContent({
-    keywords,
-    contentId: id,
-    userId: user.id,
-  }, c.executionCtx);
+  const success = await contentTagService.addKeywordsToContent(
+    {
+      keywords,
+      contentId: id,
+      userId: user.id,
+    },
+    c.executionCtx,
+  );
 
   return c.json({ success });
 });

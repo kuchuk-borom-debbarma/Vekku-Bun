@@ -92,6 +92,7 @@ export const contents = pgTable(
     title: text().notNull(),
     body: text().notNull(),
     contentType: text().notNull(),
+    metadata: jsonb("metadata").default({}).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at"),
   },
