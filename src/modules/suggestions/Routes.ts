@@ -3,7 +3,7 @@ import { getContentTagSuggestionService } from "./index";
 import { getTagService } from "../tags";
 import { getContentService } from "../contents";
 import { verifyJwt } from "../../lib/jwt";
-import { getAiRatelimit } from "../../middleware/rateLimiter";
+import { getAiRatelimit, getRatelimit } from "../../middleware/rateLimiter";
 
 type Bindings = {
   DATABASE_URL: string;
@@ -62,7 +62,7 @@ suggestionRouter.get("/content/:contentId", async (c) => {
 });
 
 /**
- * Unified Suggestion Generation (Cache-First)
+ * Unified Suggestion Generation (Cache-First + Dual Rate Limiting)
  */
 suggestionRouter.post("/generate", async (c) => {
   const { contentId, text, mode = "both" } = await c.req.json();
@@ -81,21 +81,33 @@ suggestionRouter.post("/generate", async (c) => {
 
   if (!body) return c.json({ error: "Text or Content ID is required" }, 400);
 
-  // 2. Check CACHE first (always by Text Hash now for unified hits)
+  // 2. CHECK GLOBAL LIMIT (10 requests / 10 seconds) - ALWAYS
+  const globalLimiter = getRatelimit();
+  if (globalLimiter) {
+    const { success, limit, reset, remaining } = await globalLimiter.limit(user.id);
+    console.log(`[RateLimit] Suggestion Global Check - User: ${user.id}, Success: ${success}, Remaining: ${remaining}`);
+    
+    c.header("X-RateLimit-Limit", limit.toString());
+    c.header("X-RateLimit-Remaining", remaining.toString());
+    c.header("X-RateLimit-Reset", reset.toString());
+
+    if (!success) return c.json({ error: "Too many suggestion requests. Slow down." }, 429);
+  }
+
+  // 3. Check CACHE first (always by Text Hash now for unified hits)
   const cached = await suggestionService.getSuggestionsForContent(contentId, user.id, mode, body);
   if (cached) {
     console.log(`[Suggestions] Cache HIT for ${mode} (Anchor: TextHash)`);
     return c.json(cached);
   }
 
-  // 3. Cache Miss -> Enforce AI Rate Limit (Independent per user + mode)
-  const limiter = getAiRatelimit();
-  if (limiter) {
+  // 4. Cache MISS -> Enforce strict AI Rate Limit (3 requests / 1 minute)
+  const aiLimiter = getAiRatelimit();
+  if (aiLimiter) {
     const identifier = `${user.id}:${mode}`;
-    const { success, limit, reset, remaining } = await limiter.limit(identifier);
-    console.log(`[RateLimit] Manual AI Check - Mode: ${mode}, Identifier: ${identifier}, Success: ${success}, Remaining: ${remaining}`);
+    const { success, limit, reset, remaining } = await aiLimiter.limit(identifier);
+    console.log(`[RateLimit] Suggestion AI Check - Mode: ${mode}, Identifier: ${identifier}, Success: ${success}, Remaining: ${remaining}`);
     
-    // Add headers even for manual checks
     c.header("X-AI-RateLimit-Limit", limit.toString());
     c.header("X-AI-RateLimit-Remaining", remaining.toString());
     c.header("X-AI-RateLimit-Reset", reset.toString());
@@ -105,7 +117,7 @@ suggestionRouter.post("/generate", async (c) => {
     } 
   }
 
-  // 4. Generate & Cache
+  // 5. Generate & Cache
   const result = await suggestionService.createSuggestionsForContent({
     content: body,
     contentId,

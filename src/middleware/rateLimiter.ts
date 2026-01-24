@@ -6,7 +6,7 @@ import { getRedisClient } from "../lib/redis";
 // For now, we use a single global limiter instance lazily initialized
 let ratelimit: Ratelimit | null = null;
 
-const getRatelimit = () => {
+export const getRatelimit = () => {
   if (ratelimit) return ratelimit;
 
   try {
