@@ -241,4 +241,24 @@ contentRouter.get("/:id/tags", async (c) => {
   }
 });
 
+// Add Potential Keywords as Tags
+contentRouter.post("/:id/potential", async (c) => {
+  const id = c.req.param("id");
+  const { keywords } = await c.req.json();
+  const user = c.get("user");
+  const contentTagService = getContentTagService();
+
+  try {
+    const success = await contentTagService.addKeywordsToContent({ 
+      contentId: id, 
+      userId: user.id, 
+      keywords 
+    }, c.executionCtx);
+    
+    return c.json({ success });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
 export { contentRouter };
