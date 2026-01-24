@@ -6,7 +6,6 @@ export type Content = {
   body: string;
   userId: string;
   contentType: ContentType;
-  metadata: any;
   createdAt: Date;
   updatedAt: Date | null;
 };
@@ -18,14 +17,7 @@ export enum ContentType {
 }
 
 export interface IContentService {
-  createYoutubeContent(data: {
-    url: string;
-    userId: string;
-    userDefineddesc?: string;
-    userDefinedTitle?: string;
-  }): Promise<Content | null>;
-
-  createTextContent(
+  createContent(
     data: {
       title: string;
       content: string;

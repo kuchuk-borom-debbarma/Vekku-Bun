@@ -10,64 +10,13 @@ import {
 } from "./ContentService";
 import { getEventBus, TOPICS } from "../../lib/events";
 import { CacheServiceUpstash } from "../../lib/cache";
-import { getYouTubeService } from "../youtube/YouTubeService";
 
 const SEGMENT_SIZE = 20;
 
 export class ContentServiceImpl implements IContentService {
   constructor(private db: NeonHttpDatabase<typeof schema>) {}
-  
-  async createYoutubeContent(data: {
-    url: string;
-    userId: string;
-    userDefineddesc?: string;
-    userDefinedTitle?: string;
-  }): Promise<Content | null> {
-    const youtubeService = getYouTubeService();
-    const videoId = youtubeService.extractVideoId(data.url);
-    
-    if (!videoId) {
-      throw new Error("Invalid YouTube URL");
-    }
 
-    const transcriptData = await youtubeService.getTranscript(videoId);
-    if (!transcriptData) {
-      throw new Error("Failed to fetch transcript for this video.");
-    }
-
-    // 1. Determine Title
-    const finalTitle = data.userDefinedTitle || transcriptData.title;
-
-    // 2. Construct Body for Embedding Priority
-    // If user provided a description, put it first to give it weight in the embedding context
-    let finalBody = "";
-    if (data.userDefineddesc) {
-      finalBody += `${data.userDefineddesc}\n\n`;
-    }
-    finalBody += transcriptData.text;
-
-    // 3. Prepare Metadata
-    const metadata = {
-      youtubeUrl: data.url,
-      videoId: videoId,
-      originalTitle: transcriptData.title,
-      userDescription: data.userDefineddesc || null,
-      transcriptionLength: transcriptData.text.length,
-      // We store the raw transcription in metadata too if needed for display separately from body
-      transcription: transcriptData.text 
-    };
-
-    // 4. Create Content Record
-    return this.createContentInternal({
-      title: finalTitle,
-      body: finalBody,
-      contentType: ContentType.YOUTUBE_VIDEO,
-      userId: data.userId,
-      metadata: metadata,
-    });
-  }
-
-  async createTextContent(
+  async createContent(
     data: {
       title: string;
       content: string;
@@ -76,28 +25,9 @@ export class ContentServiceImpl implements IContentService {
     },
     ctx?: { waitUntil: (promise: Promise<any>) => void },
   ): Promise<Content | null> {
-    return this.createContentInternal({
-        title: data.title,
-        body: data.content,
-        contentType: data.contentType,
-        userId: data.userId,
-        metadata: {}, // Empty metadata for text content
-    }, ctx);
-  }
-
-  /**
-   * Internal helper to handle the common DB insertion, cache invalidation, and event publishing
-   */
-  private async createContentInternal(data: {
-      title: string;
-      body: string;
-      contentType: ContentType;
-      userId: string;
-      metadata: any;
-  }, ctx?: { waitUntil: (promise: Promise<any>) => void }): Promise<Content | null> {
-    // Validation
-    if (!data.title || !data.body || !data.userId) {
-        throw new Error("Invalid data");
+    //validation
+    if (!data.title || !data.content || !data.userId) {
+      throw new Error("Invalid data");
     }
 
     const result = await this.db
@@ -105,10 +35,9 @@ export class ContentServiceImpl implements IContentService {
       .values({
         id: generateUUID(),
         title: data.title,
-        body: data.body,
+        body: data.content,
         contentType: data.contentType,
         userId: data.userId,
-        metadata: data.metadata,
       })
       .returning();
 
@@ -178,7 +107,6 @@ export class ContentServiceImpl implements IContentService {
       body: content.body,
       userId: content.userId,
       contentType: content.contentType as ContentType,
-      metadata: content.metadata,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
@@ -286,7 +214,6 @@ export class ContentServiceImpl implements IContentService {
       body: content.body,
       userId: content.userId,
       contentType: content.contentType as ContentType,
-      metadata: content.metadata,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
@@ -383,7 +310,6 @@ export class ContentServiceImpl implements IContentService {
       body: content.body,
       userId: content.userId,
       contentType: content.contentType as ContentType,
-      metadata: content.metadata,
       createdAt: content.createdAt,
       updatedAt: content.updatedAt,
     };
@@ -474,7 +400,6 @@ export class ContentServiceImpl implements IContentService {
           body: content.body,
           userId: content.userId,
           contentType: content.contentType as ContentType,
-          metadata: content.metadata,
           createdAt: content.createdAt,
           updatedAt: content.updatedAt,
         }));
@@ -611,7 +536,6 @@ export class ContentServiceImpl implements IContentService {
           body: content.body,
           userId: content.userId,
           contentType: content.contentType as ContentType,
-          metadata: content.metadata,
           createdAt: content.createdAt,
           updatedAt: content.updatedAt,
         }));

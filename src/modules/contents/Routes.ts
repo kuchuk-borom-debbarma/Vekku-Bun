@@ -40,76 +40,6 @@ contentRouter.use("*", async (c, next) => {
   await next();
 });
 
-// Preview YouTube Content (Fetch Title & Transcript)
-contentRouter.post("/youtube/preview", async (c) => {
-  const { url } = await c.req.json();
-  
-  if (!url) {
-    return c.json({ error: "URL is required" }, 400);
-  }
-
-  try {
-    // We can't use the service directly as it's not exposed via getYouTubeService in this context usually, 
-    // but looking at imports, we can import the factory.
-    // However, sticking to the pattern, we'll instantiate or import the service.
-    // I previously exported 'getYouTubeService' from '../youtube/YouTubeService'.
-    const { getYouTubeService } = await import("../youtube/YouTubeService");
-    const youtubeService = getYouTubeService();
-    
-    const videoId = youtubeService.extractVideoId(url);
-    if (!videoId) {
-      return c.json({ error: "Invalid YouTube URL" }, 400);
-    }
-
-    const data = await youtubeService.getTranscript(videoId);
-    if (!data) {
-      return c.json({ error: "Could not fetch transcript" }, 404);
-    }
-
-    return c.json({ title: data.title, transcript: data.text });
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 400);
-  }
-});
-
-// Create YouTube Content
-contentRouter.post("/youtube", async (c) => {
-  const data = await c.req.json();
-  const user = c.get("user");
-  const contentService = getContentService();
-
-  if (!data.url) {
-    return c.json({ error: "URL is required" }, 400);
-  }
-
-  try {
-    const result = await contentService.createYoutubeContent({
-      url: data.url,
-      userId: user.id,
-      userDefinedTitle: data.title, // Map 'title' from frontend to 'userDefinedTitle'
-      userDefineddesc: data.description, // Map 'description' from frontend to 'userDefineddesc'
-    });
-
-    // If tags are provided, link them (consistent with text content creation)
-    if (result && data.tagIds && Array.isArray(data.tagIds) && data.tagIds.length > 0) {
-       const contentTagService = getContentTagService();
-       try {
-         await contentTagService.addTagsToContent({
-           contentId: result.id,
-           tagIds: data.tagIds,
-           userId: user.id,
-         });
-       } catch (tagError) {
-         console.error("Failed to link tags during YouTube content creation:", tagError);
-       }
-    }
-
-    return c.json(result, 201);
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 400);
-  }
-});
-
 // Create Content
 contentRouter.post("/", async (c) => {
   const data = await c.req.json();
@@ -117,7 +47,7 @@ contentRouter.post("/", async (c) => {
   const contentService = getContentService();
 
   try {
-    const result = await contentService.createTextContent(
+    const result = await contentService.createContent(
       {
         title: data.title,
         content: data.content,
