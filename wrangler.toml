@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 WORKER = "true"
 CLOUDFLARE_AI_MODEL = "@cf/baai/bge-small-en-v1.5"
-CLOUDFLARE_SLM_MODEL = "@cf/microsoft/phi-3-mini-4k-instruct"
+CLOUDFLARE_SLM_MODEL = "@cf/meta/llama-3.2-1b-instruct"
 EMBEDDING_THRESHOLD = "0.4"
 EMBEDDING_MATCH_COUNT = "10"
 GITHUB_URL = "https://github.com/kuchuk-borom-debbarma"

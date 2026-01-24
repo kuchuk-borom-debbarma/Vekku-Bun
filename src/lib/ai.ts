@@ -53,7 +53,7 @@ const cloudflareAIService: IAIService = {
 
   generateText: async (prompt: string, systemPrompt: string = "You are a precise tag extraction assistant."): Promise<string> => {
     const { accountId, apiKey, slmModel } = aiConfig;
-    const model = slmModel || "@cf/microsoft/phi-3-mini-4k-instruct";
+    const model = slmModel || "@cf/meta/llama-3.2-1b-instruct";
 
     if (!accountId || !apiKey) throw new Error("Cloudflare AI credentials missing.");
 
@@ -64,7 +64,7 @@ const cloudflareAIService: IAIService = {
       body: JSON.stringify({
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "human", content: prompt }
+          { role: "user", content: prompt }
         ]
       }),
     });
