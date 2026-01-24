@@ -30,7 +30,7 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return mag === 0 ? 0 : dotProduct / mag;
 }
 
-const KEYWORD_COLLISION_THRESHOLD = 0.3; // Distance lower than this means it's the same concept
+const KEYWORD_COLLISION_THRESHOLD = 0.2; // Lowered from 0.3 to allow more distinct technical concepts
 const MIN_KEYWORD_SIMILARITY = 0.4; // Keywords must have at least this similarity to the document
 
 export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
@@ -48,24 +48,28 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     // 1. Try SLM Extraction (Smart)
     try {
       console.log("[SuggestionService] Attempting SLM-based tag extraction...");
-      const prompt = `Extract 10 high-quality, distinct technical tags or keywords from the following text. 
-      Focus on core concepts, technologies, and specific subjects. 
-      Avoid generic words like "video", "introduction", or "guide". 
-      Return ONLY a comma-separated list of tags.
+      const prompt = `Extract exactly 15 high-quality, distinct technical tags or keywords from the following text. 
+      Focus on specific technologies, architecture patterns, and core concepts. 
+      Avoid conversational filler, introductory words, or generic terms.
+      
+      Output ONLY the tags as a comma-separated list. No numbering, no introduction, no explanation.
       
       TEXT:
-      ${content.slice(0, 2000)}`; // Slice to stay within token limits
+      ${content.slice(0, 2000)}`;
 
-      const aiResponse = await ai.generateText(prompt, "You are a professional technical content classifier. Output only a comma-separated list.");
+      const aiResponse = await ai.generateText(prompt, "You are a specialized technical metadata extractor. Your output must be a single line of comma-separated tags and nothing else.");
       
       if (aiResponse && aiResponse.trim().length > 0) {
-        // Clean the AI response (it might include numbering or noise)
-        candidates = aiResponse
+        // Advanced Clean: Remove "Here are...", "Tags:", etc.
+        const cleanedResponse = aiResponse.replace(/^(here are|technical tags|the following|tags|keywords|extracted tags)(.*?):/i, "").trim();
+
+        candidates = cleanedResponse
           .split(",")
           .map(t => t.replace(/^\d+\.\s*/, "").trim()) // Remove leading "1. " etc.
-          .filter(t => t.length > 2 && t.length < 30);
+          .map(t => t.replace(/["']/g, "")) // Remove quotes if AI added them
+          .filter(t => t.length > 2 && t.length < 40 && !t.toLowerCase().includes("high quality"));
         
-        console.log(`[SuggestionService] SLM extracted ${candidates.length} candidates: ${candidates.join(", ")}`);
+        console.log(`[SuggestionService] SLM extracted ${candidates.length} candidates after cleaning.`);
       }
     } catch (e) {
       console.warn("[SuggestionService] SLM extraction failed, falling back to N-grams:", e);
