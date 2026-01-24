@@ -39,11 +39,12 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     return results.map(r => ({ word: r.word, score: r.score }));
   }
 
-  private async extractKeywordsInternal(content: string): Promise<{ word: string; score: number; embedding: number[] }[]> {
+  private async extractKeywordsInternal(content: string): Promise<{ word: string; score: number; embedding: number[]; fromAI: boolean }[]> {
     const limit = calculateKeywordLimit(content);
     const ai = getAIService();
     
     let candidates: string[] = [];
+    let isFromAI = false;
 
     // 1. Try SLM Extraction (Smart)
     try {
@@ -60,32 +61,32 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       const aiResponse = await ai.generateText(prompt, "You are a specialized technical metadata extractor. Your output must be a single line of comma-separated tags and nothing else.");
       
       if (aiResponse && aiResponse.trim().length > 0) {
-        // Advanced Clean: Remove "Here are...", "Tags:", etc.
         const cleanedResponse = aiResponse.replace(/^(here are|technical tags|the following|tags|keywords|extracted tags)(.*?):/i, "").trim();
 
         candidates = cleanedResponse
           .split(",")
-          .map(t => t.replace(/^\d+\.\s*/, "").trim()) // Remove leading "1. " etc.
-          .map(t => t.replace(/["']/g, "")) // Remove quotes if AI added them
+          .map(t => t.replace(/^\d+\.\s*/, "").trim())
+          .map(t => t.replace(/["']/g, ""))
           .filter(t => t.length > 2 && t.length < 40 && !t.toLowerCase().includes("high quality"));
         
-        console.log(`[SuggestionService] SLM extracted ${candidates.length} candidates after cleaning.`);
+        if (candidates.length >= 3) {
+          isFromAI = true;
+          console.log(`[SuggestionService] SLM extracted ${candidates.length} candidates.`);
+        }
       }
     } catch (e) {
       console.warn("[SuggestionService] SLM extraction failed, falling back to N-grams:", e);
     }
 
-    // 2. Fallback to N-grams if SLM failed or returned too few
-    if (candidates.length < 3) {
+    // 2. Fallback to N-grams if SLM failed
+    if (!isFromAI) {
       candidates = extractCandidates(content, [1, 3], 50);
     }
     
     if (candidates.length === 0) return [];
 
     const embedder = getEmbeddingService();
-    
-    // Batch Embed: [Content, ...Candidates]
-    const inputs = [content, ...candidates];
+    const inputs = isFromAI ? candidates : [content, ...candidates];
     let embeddings: number[][];
     
     try {
@@ -95,48 +96,40 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       return [];
     }
 
-    const docVector = embeddings[0];
-    const candidateVectors = embeddings.slice(1);
-
-    if (!docVector) return [];
+    const docVector = isFromAI ? null : embeddings[0];
+    const candidateVectors = isFromAI ? embeddings : embeddings.slice(1);
 
     const scored = candidates.map((word, i) => {
-      const cVec = candidateVectors[i];
-      let score = cVec ? cosineSimilarity(docVector, cVec) : 0;
+      const cVec = candidateVectors[i]!;
+      // If from AI, we trust the AI's selection and don't need to score similarity to doc for filtering
+      // We just assign a high default score for ranking
+      let score = docVector ? cosineSimilarity(docVector, cVec) : 0.9 - (i * 0.01);
       
-      // BOOST: Give a small boost to multi-word phrases to favor specific concepts over general words
-      // E.g. "load balancer" gets a 10% boost over "load"
-      const wordCount = word.split(" ").length;
-      if (wordCount > 1) {
-        score *= (1 + (wordCount - 1) * 0.05);
+      // Only apply boosting/logic if NOT from AI
+      if (!isFromAI) {
+        const wordCount = word.split(" ").length;
+        if (wordCount > 1) score *= (1 + (wordCount - 1) * 0.05);
       }
 
-      return {
-        word,
-        score,
-        embedding: cVec || []
-      };
+      return { word, score, embedding: cVec, fromAI: isFromAI };
     });
 
-    // 1. Initial sort by score
+    if (isFromAI) {
+      // TRUST THE AI: No similarity thresholding or sub-phrase suppression
+      return scored.slice(0, limit);
+    }
+
+    // N-GRAM FALLBACK: Apply strict filtering
     const sorted = scored
       .sort((a, b) => b.score - a.score)
       .filter(s => s.score >= MIN_KEYWORD_SIMILARITY);
 
-    // 2. SMART FILTERING: Sub-phrase suppression
-    // If we have "load balancer", we don't want to suggest "load" as a separate tag
-    // unless it appears in a totally different context.
     const finalResults: typeof sorted = [];
     for (const item of sorted) {
-      // Check if this word is already a sub-phrase of something we've selected
       const isSubPhrase = finalResults.some(existing => 
         existing.word !== item.word && existing.word.includes(item.word)
       );
-      
-      if (!isSubPhrase) {
-        finalResults.push(item);
-      }
-
+      if (!isSubPhrase) finalResults.push(item);
       if (finalResults.length >= limit) break;
     }
 
@@ -241,20 +234,14 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     await Promise.all(tasks);
 
     // 2. Filter Keywords
-    // Strategy: 
-    // a) Remove exact name matches
-    // b) Remove keywords that are semantically too close to user's EXISTING tags
-    
     const existingNames = new Set(existingSuggestions.map(s => normalize(s.name)));
     let filteredKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
 
     let result: ContentSuggestions;
 
     if (filteredKeywords.length > 0 && (mode === "keywords" || mode === "both")) {
-      // Semantic Collision Check:
-      // For each keyword, check if user has ANY tag with distance < threshold
-      // We do this in a single efficient query using LATERAL join for all keywords
-      
+      // a) Semantic Collision Check against user's EXISTING tags
+      // We ALWAYS do this to prevent suggesting "PostgreSQL" if the user has "Postgres"
       const collisionChecks = await Promise.all(filteredKeywords.map(async (kw) => {
         const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(kw.embedding)}`;
         const match = await db
@@ -273,36 +260,45 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       const collidedWords = new Set(collisionChecks.filter(c => c.hasCollision).map(c => c.word));
       filteredKeywords = filteredKeywords.filter(k => !collidedWords.has(k.word));
 
-      // c) Internal Self-Grouping:
-      // Instead of discarding, we group "jvm" and "the jvm" together.
-      // Since filteredKeywords is already sorted by score (desc), the first 
-      // occurrence of a concept becomes the "Primary" keyword for that group.
-      const groupedPotentials: { 
+      // b) Internal Self-Grouping
+      // If from AI, we SKIP this and trust the AI's distinct entities.
+      // If from N-grams, we do it to clean up fragments.
+      const isFromAI = filteredKeywords.length > 0 && filteredKeywords[0]!.fromAI;
+      
+      let groupedPotentials: { 
         keyword: string; 
         score: number; 
         embedding: number[];
         variants: string[];
       }[] = [];
 
-      for (const candidate of filteredKeywords) {
-        const matchingGroup = groupedPotentials.find(group => {
-          const sim = cosineSimilarity(candidate.embedding, group.embedding);
-          const dist = 1 - sim;
-          return dist < KEYWORD_COLLISION_THRESHOLD;
-        });
-
-        if (matchingGroup) {
-          // Add to variants if not exactly the same string
-          if (candidate.word.toLowerCase() !== matchingGroup.keyword.toLowerCase()) {
-            matchingGroup.variants.push(candidate.word);
-          }
-        } else {
-          groupedPotentials.push({
-            keyword: candidate.word,
-            score: candidate.score,
-            embedding: candidate.embedding,
-            variants: []
+      if (isFromAI) {
+        groupedPotentials = filteredKeywords.map(k => ({
+          keyword: k.word,
+          score: k.score,
+          embedding: k.embedding,
+          variants: []
+        }));
+      } else {
+        for (const candidate of filteredKeywords) {
+          const matchingGroup = groupedPotentials.find(group => {
+            const sim = cosineSimilarity(candidate.embedding, group.embedding);
+            const dist = 1 - sim;
+            return dist < KEYWORD_COLLISION_THRESHOLD;
           });
+
+          if (matchingGroup) {
+            if (candidate.word.toLowerCase() !== matchingGroup.keyword.toLowerCase()) {
+              matchingGroup.variants.push(candidate.word);
+            }
+          } else {
+            groupedPotentials.push({
+              keyword: candidate.word,
+              score: candidate.score,
+              embedding: candidate.embedding,
+              variants: []
+            });
+          }
         }
       }
 
