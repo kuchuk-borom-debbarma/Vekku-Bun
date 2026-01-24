@@ -6,14 +6,24 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * Clean text: lowercase, remove punctuation, keep only alphanumeric and spaces
+ * Clean text: remove timestamps, lowercase, remove punctuation, keep only alphanumeric and spaces
  */
 function cleanText(text: string): string {
-  return text
+  // 1. Remove YouTube timestamps (e.g., 00:00:00.000 or 00:00)
+  const withoutTimestamps = text.replace(/\d{1,2}:\d{2}(:\d{2}(\.\d{3})?)?/g, " ");
+
+  // 2. Lowercase and remove non-alphanumeric (excluding spaces)
+  const basicClean = withoutTimestamps
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ") 
     .replace(/\s+/g, " ")
     .trim();
+
+  // 3. Filter out purely numeric tokens (like "00", "123")
+  return basicClean
+    .split(" ")
+    .filter(word => /[a-z]/.test(word)) // Must contain at least one letter
+    .join(" ");
 }
 
 /**
