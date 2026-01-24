@@ -30,6 +30,7 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 const KEYWORD_COLLISION_THRESHOLD = 0.3; // Distance lower than this means it's the same concept
+const MIN_KEYWORD_SIMILARITY = 0.4; // Keywords must have at least this similarity to the document
 
 export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionService {
   async extractKeywords(content: string): Promise<{ word: string; score: number }[]> {
@@ -71,9 +72,10 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       };
     });
 
-    // Sort by Similarity (Desc) and take top 'limit'
+    // Sort by Similarity (Desc), filter by threshold, and take top 'limit'
     return scored
       .sort((a, b) => b.score - a.score)
+      .filter(s => s.score >= MIN_KEYWORD_SIMILARITY)
       .slice(0, limit);
   }
 
