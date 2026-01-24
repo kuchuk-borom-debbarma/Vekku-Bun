@@ -19,7 +19,7 @@ function cleanText(text: string): string {
 /**
  * Generate N-grams from text, ranked by frequency
  */
-export function extractCandidates(text: string, ngramRange: [number, number] = [1, 2], limit: number = 50): string[] {
+export function extractCandidates(text: string, ngramRange: [number, number] = [1, 3], limit: number = 50): string[] {
   const cleaned = cleanText(text);
   const words = cleaned.split(" ").filter(w => w.length > 0);
   const candidateCounts = new Map<string, number>();

@@ -65,18 +65,45 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     const scored = candidates.map((word, i) => {
       const cVec = candidateVectors[i];
+      let score = cVec ? cosineSimilarity(docVector, cVec) : 0;
+      
+      // BOOST: Give a small boost to multi-word phrases to favor specific concepts over general words
+      // E.g. "load balancer" gets a 10% boost over "load"
+      const wordCount = word.split(" ").length;
+      if (wordCount > 1) {
+        score *= (1 + (wordCount - 1) * 0.05);
+      }
+
       return {
         word,
-        score: cVec ? cosineSimilarity(docVector, cVec) : 0,
+        score,
         embedding: cVec || []
       };
     });
 
-    // Sort by Similarity (Desc), filter by threshold, and take top 'limit'
-    return scored
+    // 1. Initial sort by score
+    const sorted = scored
       .sort((a, b) => b.score - a.score)
-      .filter(s => s.score >= MIN_KEYWORD_SIMILARITY)
-      .slice(0, limit);
+      .filter(s => s.score >= MIN_KEYWORD_SIMILARITY);
+
+    // 2. SMART FILTERING: Sub-phrase suppression
+    // If we have "load balancer", we don't want to suggest "load" as a separate tag
+    // unless it appears in a totally different context.
+    const finalResults: typeof sorted = [];
+    for (const item of sorted) {
+      // Check if this word is already a sub-phrase of something we've selected
+      const isSubPhrase = finalResults.some(existing => 
+        existing.word !== item.word && existing.word.includes(item.word)
+      );
+      
+      if (!isSubPhrase) {
+        finalResults.push(item);
+      }
+
+      if (finalResults.length >= limit) break;
+    }
+
+    return finalResults;
   }
 
   async ensureConceptExists(semantic: string): Promise<string> {
