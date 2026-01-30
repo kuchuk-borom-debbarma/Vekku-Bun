@@ -137,12 +137,13 @@ contentRouter.get("/search", async (c) => {
   const user = c.get("user");
   const query = c.req.query("q");
   const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 10;
+  const offset = c.req.query("offset") ? parseInt(c.req.query("offset")!) : 0;
 
   if (!query) return c.json({ error: "Query 'q' is required" }, 400);
 
   const contentService = getContentService();
   try {
-    const results = await contentService.searchContents(user.id, query, limit);
+    const results = await contentService.searchContents(user.id, query, limit, offset);
     return c.json(results);
   } catch (error) {
     return c.json({ error: (error as Error).message }, 400);

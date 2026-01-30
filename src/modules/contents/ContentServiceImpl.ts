@@ -235,9 +235,9 @@ export class ContentServiceImpl implements IContentService {
     await this.invalidateUserContentCaches(userId);
   }
 
-  async searchContents(userId: string, query: string, limit: number = 10): Promise<Content[]> {
+  async searchContents(userId: string, query: string, limit: number = 10, offset: number = 0): Promise<Content[]> {
     const embeddingService = getContentEmbeddingService();
-    return embeddingService.searchContent(userId, query, limit);
+    return embeddingService.searchContent(userId, query, limit, offset);
   }
 
   async deleteContent(id: string, userId: string): Promise<boolean> {

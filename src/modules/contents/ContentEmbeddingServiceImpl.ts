@@ -46,6 +46,7 @@ export class ContentEmbeddingServiceImpl implements IContentEmbeddingService {
     userId: string,
     query: string,
     limit: number = 10,
+    offset: number = 0,
   ): Promise<Content[]> {
     const embeddingService = getEmbeddingService();
     const queryEmbedding = await embeddingService.generateEmbedding(query);
@@ -73,7 +74,8 @@ export class ContentEmbeddingServiceImpl implements IContentEmbeddingService {
         ),
       )
       .orderBy(desc(similarity))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
 
     return results.map((r) => ({
       id: r.content.id,
