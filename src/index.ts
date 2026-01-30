@@ -7,6 +7,7 @@ import { suggestionRouter } from "./modules/suggestions/Routes";
 import { adminRouter } from "./modules/admin/Routes";
 import { statsRouter } from "./modules/stats/Routes";
 import { initSuggestionListeners } from "./modules/suggestions";
+import { initContentListeners } from "./modules/contents/ContentListeners";
 import { getDb } from "./db";
 import { setJwtSecret } from "./lib/jwt";
 import { setAIConfig } from "./lib/ai";
@@ -16,6 +17,7 @@ import { rateLimiter } from "./middleware/rateLimiter";
 
 // Initialize global event listeners
 initSuggestionListeners();
+initContentListeners();
 
 type Bindings = {
   DATABASE_URL: string;

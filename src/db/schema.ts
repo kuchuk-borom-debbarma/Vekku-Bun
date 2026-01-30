@@ -105,6 +105,23 @@ export const contents = pgTable(
   ],
 );
 
+export const contentEmbeddings = pgTable(
+  "content_embeddings",
+  {
+    contentId: varchar("fk_content_id", { length: 255 })
+      .primaryKey()
+      .references(() => contents.id, { onDelete: "cascade" }),
+    embedding: vector("embedding", { dimensions: 384 }), // bge-small-en-v1.5
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("content_embedding_hnsw_idx").using(
+      "hnsw",
+      table.embedding.op("vector_cosine_ops"),
+    ),
+  ],
+);
+
 export const contentTags = pgTable(
   "content_tags",
   {

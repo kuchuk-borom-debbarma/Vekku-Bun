@@ -8,6 +8,7 @@ import {
   ContentType,
   type IContentService,
 } from "./ContentService";
+import { getContentEmbeddingService } from "./index";
 import { getEventBus, TOPICS } from "../../lib/events";
 import { CacheServiceUpstash } from "../../lib/cache";
 
@@ -232,6 +233,11 @@ export class ContentServiceImpl implements IContentService {
     }
 
     await this.invalidateUserContentCaches(userId);
+  }
+
+  async searchContents(userId: string, query: string, limit: number = 10): Promise<Content[]> {
+    const embeddingService = getContentEmbeddingService();
+    return embeddingService.searchContent(userId, query, limit);
   }
 
   async deleteContent(id: string, userId: string): Promise<boolean> {

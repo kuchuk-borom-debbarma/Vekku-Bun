@@ -66,5 +66,7 @@ export interface IContentService {
     offset?: number,
   ): Promise<ChunkPaginationData<Content>>;
 
+  searchContents(userId: string, query: string, limit?: number): Promise<Content[]>;
+
   bulkDeleteContents(userId: string, ids: string[] | "*"): Promise<void>;
 }

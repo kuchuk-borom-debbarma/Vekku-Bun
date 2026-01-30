@@ -132,6 +132,23 @@ contentRouter.post("/", async (c) => {
   }
 });
 
+// Semantic Search
+contentRouter.get("/search", async (c) => {
+  const user = c.get("user");
+  const query = c.req.query("q");
+  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 10;
+
+  if (!query) return c.json({ error: "Query 'q' is required" }, 400);
+
+  const contentService = getContentService();
+  try {
+    const results = await contentService.searchContents(user.id, query, limit);
+    return c.json(results);
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
+});
+
 // Get Contents by Tags
 contentRouter.get("/by-tags", async (c) => {
   const user = c.get("user");
