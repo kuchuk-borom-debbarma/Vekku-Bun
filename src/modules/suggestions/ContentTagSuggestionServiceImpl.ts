@@ -39,7 +39,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     return results.map(r => ({ word: r.word, score: r.score }));
   }
 
-  private async extractKeywordsInternal(content: string): Promise<{ word: string; score: number; embedding: number[]; fromAI: boolean }[]> {
+  private async extractKeywordsInternal(content: string, contextTags: string[] = []): Promise<{ word: string; score: number; embedding: number[]; fromAI: boolean }[]> {
     const limit = 40; // Increased cap for more diversity
     const ai = getAIService();
     
@@ -48,9 +48,15 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 
     // 1. Try SLM Extraction (Smart)
     try {
+      let contextInstruction = "";
+      if (contextTags.length > 0) {
+        contextInstruction = `\n      CONTEXT - EXISTING TAGS (Prioritize these if relevant): ${contextTags.join(", ")}.`;
+      }
+
       const prompt = `Extract all relevant, high-quality technical and subject-specific tags or keywords from the following text. 
       
       CRITICAL INSTRUCTION: The first line(s) are the TITLE. You MUST extract any multi-word entities, technologies, or subjects mentioned in the TITLE (e.g., "Unreal Engine 5", "Spring Boot", "Load Balancer"). Do NOT break them into single words.
+      ${contextInstruction}
       
       Focus on core entities and primary subjects. Avoid conversational filler or generic meta-terms.
       
@@ -190,20 +196,20 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     const db = getDb();
     const embedder = getEmbeddingService();
 
-    let contentEmbedding: number[] | null = null;
-    let rawKeywords: { word: string; score: number; embedding: number[] }[] = [];
-    let existingSuggestions: any[] = [];
-
-    // 1. Generate tasks based on mode
-    const tasks = [];
+    // 1. Generate Content Embedding (Required for RAG and Tags)
+    const contentEmbedding = await embedder.generateEmbedding(data.content);
     
-    if (mode === "tags" || mode === "both") {
-      tasks.push((async () => {
-        contentEmbedding = await embedder.generateEmbedding(data.content);
-        const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(contentEmbedding)}`;
-        const similarity = sql<number>`1 - (${distance})`;
+    let rawKeywords: { word: string; score: number; embedding: number[]; fromAI: boolean }[] = [];
+    let existingSuggestions: any[] = [];
+    let contextTags: string[] = [];
+
+    // 2. Fetch Existing Tags (RAG Context & Suggestions)
+    if (mode === "tags" || mode === "both" || mode === "keywords") {
+       // We fetch existing tags even in keyword mode to use as RAG context
+       const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(contentEmbedding)}`;
+       const similarity = sql<number>`1 - (${distance})`;
         
-        existingSuggestions = await db
+       existingSuggestions = await db
           .select({
             tagId: userTags.id,
             name: userTags.name,
@@ -213,19 +219,19 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
           .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
           .where(eq(userTags.userId, data.userId))
           .orderBy(distance)
-          .limit(30); // Increased limit for better matching
-      })());
+          .limit(30);
+
+       // Prepare context for SLM (Top 15 to avoid polluting context window too much)
+       contextTags = existingSuggestions.slice(0, 15).map(s => s.name);
     }
 
+    // 3. Extract Keywords (with RAG Context)
     if (mode === "keywords" || mode === "both") {
-      tasks.push((async () => {
-        rawKeywords = await this.extractKeywordsInternal(data.content);
-      })());
+       // Pass contextTags to bias the SLM towards existing vocabulary
+       rawKeywords = await this.extractKeywordsInternal(data.content, contextTags);
     }
 
-    await Promise.all(tasks);
-
-    // 2. Filter Keywords
+    // 4. Filter Keywords
     const existingNames = new Set(existingSuggestions.map(s => normalize(s.name)));
     let filteredKeywords = rawKeywords.filter(k => !existingNames.has(normalize(k.word)));
 

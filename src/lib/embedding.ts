@@ -1,4 +1,4 @@
-import { getAIService, IAIService, setAIConfig } from "./ai";
+import { getAIService, type IAIService, setAIConfig } from "./ai";
 
 export interface IEmbeddingService {
   generateEmbedding(text: string): Promise<number[]>;

@@ -20,7 +20,7 @@ const localAIService: IAIService = {
     return new Array(1024).fill(0).map((_, i) => (i === 0 ? 1 : 0));
   },
   generateEmbeddings: async (texts: string[]): Promise<number[][]> => {
-    return texts.map(() => localAIService.generateEmbedding(""));
+    return Promise.all(texts.map(() => localAIService.generateEmbedding("")));
   },
   generateText: async (prompt: string): Promise<string> => {
     return "local, ai, fallback, tags";
