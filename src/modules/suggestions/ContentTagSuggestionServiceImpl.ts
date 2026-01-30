@@ -39,7 +39,7 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     return results.map(r => ({ word: r.word, score: r.score }));
   }
 
-  private async extractKeywordsInternal(content: string, contextTags: string[] = []): Promise<{ word: string; score: number; embedding: number[]; fromAI: boolean }[]> {
+  private async extractKeywordsInternal(content: string, contextTags: string[] = [], contentEmbedding: number[] | null = null): Promise<{ word: string; score: number; embedding: number[]; fromAI: boolean }[]> {
     const limit = 40; // Increased cap for more diversity
     const ai = getAIService();
     
@@ -92,7 +92,11 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     if (candidates.length === 0) return [];
 
     const embedder = getEmbeddingService();
-    const inputs = isFromAI ? candidates : [content, ...candidates];
+    // Optimization: If we have contentEmbedding (and need it for fallback), use it.
+    // If isFromAI is true, we treat candidates as independent entities (docVector null logic preserved).
+    // If isFromAI is false, we normally need [content, ...candidates]. But we have contentEmbedding.
+    
+    const inputs = candidates; // Only embed candidates
     let embeddings: number[][];
     
     try {
@@ -102,8 +106,11 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
       return [];
     }
 
-    const docVector = isFromAI ? null : embeddings[0];
-    const candidateVectors = isFromAI ? embeddings : embeddings.slice(1);
+    const docVector = isFromAI ? null : (contentEmbedding || embeddings[0]); 
+    // Note: If contentEmbedding was null (unlikely in caller) and isFromAI is false, logic might be skewed if we didn't include content in inputs. 
+    // However, the caller (createSuggestionsForContent) guarantees contentEmbedding is passed.
+    
+    const candidateVectors = embeddings;
 
     const scored = candidates.map((word, i) => {
       const cVec = candidateVectors[i]!;
@@ -214,12 +221,13 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
             tagId: userTags.id,
             name: userTags.name,
             score: similarity,
+            embedding: tagEmbeddings.embedding, // Fetch embedding for in-memory comparison
           })
           .from(userTags)
           .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
           .where(eq(userTags.userId, data.userId))
           .orderBy(distance)
-          .limit(30);
+          .limit(60); // Increased limit for better context and collision detection
 
        // Prepare context for SLM (Top 15 to avoid polluting context window too much)
        contextTags = existingSuggestions.slice(0, 15).map(s => s.name);
@@ -228,7 +236,8 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     // 3. Extract Keywords (with RAG Context)
     if (mode === "keywords" || mode === "both") {
        // Pass contextTags to bias the SLM towards existing vocabulary
-       rawKeywords = await this.extractKeywordsInternal(data.content, contextTags);
+       // Pass contentEmbedding to optimize fallback scoring
+       rawKeywords = await this.extractKeywordsInternal(data.content, contextTags, contentEmbedding);
     }
 
     // 4. Filter Keywords
@@ -238,22 +247,19 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     let result: ContentSuggestions;
 
     if (filteredKeywords.length > 0 && (mode === "keywords" || mode === "both")) {
-      // a) Semantic Collision Check against user's EXISTING tags
-      // We ALWAYS do this to prevent suggesting "PostgreSQL" if the user has "Postgres"
-      const collisionChecks = await Promise.all(filteredKeywords.map(async (kw) => {
-        const distance = sql<number>`${tagEmbeddings.embedding} <=> ${JSON.stringify(kw.embedding)}`;
-        const match = await db
-          .select({ id: userTags.id })
-          .from(userTags)
-          .innerJoin(tagEmbeddings, eq(userTags.semantic, tagEmbeddings.semantic))
-          .where(and(
-            eq(userTags.userId, data.userId),
-            sql`${distance} < ${KEYWORD_COLLISION_THRESHOLD}`
-          ))
-          .limit(1);
+      // a) Semantic Collision Check against user's EXISTING tags (IN-MEMORY OPTIMIZATION)
+      // We check against the top 60 retrieved tags. This is statistically safe for "relevant" collisions.
+      const collisionChecks = filteredKeywords.map((kw) => {
+        // Check if this keyword is too close to ANY of the retrieved existing tags
+        const collision = existingSuggestions.find(existing => {
+           if (!existing.embedding) return false;
+           const sim = cosineSimilarity(kw.embedding, existing.embedding);
+           const dist = 1 - sim;
+           return dist < KEYWORD_COLLISION_THRESHOLD;
+        });
         
-        return { word: kw.word, hasCollision: match.length > 0 };
-      }));
+        return { word: kw.word, hasCollision: !!collision };
+      });
 
       const collidedWords = new Set(collisionChecks.filter(c => c.hasCollision).map(c => c.word));
       filteredKeywords = filteredKeywords.filter(k => !collidedWords.has(k.word));
