@@ -193,8 +193,8 @@ export class ContentServiceImpl implements IContentService {
     };
   }
 
-  async bulkDeleteContents(userId: string, ids: string[] | "ALL"): Promise<void> {
-    if (ids === "ALL") {
+  async bulkDeleteContents(userId: string, ids: string[] | "*"): Promise<void> {
+    if (ids === "*") {
       await this.db.delete(schema.contents).where(eq(schema.contents.userId, userId));
       
       await this.db.execute(sql`

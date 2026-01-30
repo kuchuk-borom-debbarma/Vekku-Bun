@@ -248,10 +248,10 @@ export class TagServiceImpl implements ITagService {
     return null;
   }
 
-  async bulkDeleteTags(userId: string, ids: string[] | "ALL"): Promise<void> {
+  async bulkDeleteTags(userId: string, ids: string[] | "*"): Promise<void> {
     const db = getDb();
     
-    if (ids === "ALL") {
+    if (ids === "*") {
       await db.delete(schema.userTags).where(eq(schema.userTags.userId, userId));
       
       await db.execute(sql`

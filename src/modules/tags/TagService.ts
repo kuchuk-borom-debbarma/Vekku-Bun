@@ -59,5 +59,5 @@ export interface ITagService {
 
   getTagsByIds(tagIds: string[], userId: string): Promise<UserTag[]>;
 
-  bulkDeleteTags(userId: string, ids: string[] | "ALL"): Promise<void>;
+  bulkDeleteTags(userId: string, ids: string[] | "*"): Promise<void>;
 }
