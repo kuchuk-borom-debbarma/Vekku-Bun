@@ -248,6 +248,46 @@ export class TagServiceImpl implements ITagService {
     return null;
   }
 
+  async bulkDeleteTags(userId: string, ids: string[] | "ALL"): Promise<void> {
+    const db = getDb();
+    
+    if (ids === "ALL") {
+      await db.delete(schema.userTags).where(eq(schema.userTags.userId, userId));
+      
+      await db.execute(sql`
+        UPDATE users 
+        SET metadata = jsonb_set(
+          metadata, 
+          '{tagCount}', 
+          '0'
+        )
+        WHERE id = ${userId}
+      `);
+    } else {
+      if (ids.length === 0) return;
+
+      const result = await db
+        .delete(schema.userTags)
+        .where(and(eq(schema.userTags.userId, userId), inArray(schema.userTags.id, ids)))
+        .returning({ id: schema.userTags.id });
+
+      const deletedCount = result.length;
+      if (deletedCount > 0) {
+        await db.execute(sql`
+          UPDATE users 
+          SET metadata = jsonb_set(
+            metadata, 
+            '{tagCount}', 
+            (GREATEST(COALESCE((metadata->>'tagCount')::int, 0) - ${deletedCount}, 0))::text::jsonb
+          )
+          WHERE id = ${userId}
+        `);
+      }
+    }
+
+    await this.invalidateUserTagCaches(userId);
+  }
+
   async deleteTag(
     data: { id: string; userId: string },
     ctx?: { waitUntil: (promise: Promise<any>) => void },

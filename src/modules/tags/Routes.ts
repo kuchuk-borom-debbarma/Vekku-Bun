@@ -93,6 +93,20 @@ tagRouter.patch("/:id", async (c) => {
   }
 });
 
+// Bulk Delete Tags
+tagRouter.delete("/bulk", async (c) => {
+  const { ids } = await c.req.json();
+  const user = c.get("user");
+  const tagService = getTagService();
+
+  if (!ids || (ids !== "*" && !Array.isArray(ids))) {
+    return c.json({ error: "Invalid 'ids' format. Must be '*' or string[]" }, 400);
+  }
+
+  await tagService.bulkDeleteTags(user.id, ids);
+  return c.json({ success: true });
+});
+
 // Delete Tag
 tagRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");

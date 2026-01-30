@@ -192,6 +192,20 @@ contentRouter.patch("/:id", async (c) => {
   }
 });
 
+// Bulk Delete Contents
+contentRouter.delete("/bulk", async (c) => {
+  const { ids } = await c.req.json();
+  const user = c.get("user");
+  const contentService = getContentService();
+
+  if (!ids || (ids !== "*" && !Array.isArray(ids))) {
+    return c.json({ error: "Invalid 'ids' format. Must be '*' or string[]" }, 400);
+  }
+
+  await contentService.bulkDeleteContents(user.id, ids);
+  return c.json({ success: true });
+});
+
 // Delete Content
 contentRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");

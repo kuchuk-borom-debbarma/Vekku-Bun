@@ -193,6 +193,47 @@ export class ContentServiceImpl implements IContentService {
     };
   }
 
+  async bulkDeleteContents(userId: string, ids: string[] | "ALL"): Promise<void> {
+    if (ids === "ALL") {
+      await this.db.delete(schema.contents).where(eq(schema.contents.userId, userId));
+      
+      await this.db.execute(sql`
+        UPDATE users
+        SET metadata = jsonb_set(
+          metadata,
+          '{contentCount}',
+          '0'
+        )
+        WHERE id = ${userId}
+      `);
+    } else {
+      if (ids.length === 0) return;
+      
+      const result = await this.db
+        .delete(schema.contents)
+        .where(and(eq(schema.contents.userId, userId), inArray(schema.contents.id, ids)))
+        .returning({ id: schema.contents.id });
+      
+      const deletedCount = result.length;
+      if (deletedCount > 0) {
+        await this.db.execute(sql`
+          UPDATE users
+          SET metadata = jsonb_set(
+            metadata,
+            '{contentCount}',
+            (GREATEST(COALESCE((metadata->>'contentCount')::int, 0) - ${deletedCount}, 0))::text::jsonb
+          )
+          WHERE id = ${userId}
+        `);
+        
+        // Invalidate individual content caches
+        await Promise.all(ids.map(id => CacheServiceUpstash.del(CacheServiceUpstash.generateKey("contents", "detail", id))));
+      }
+    }
+
+    await this.invalidateUserContentCaches(userId);
+  }
+
   async deleteContent(id: string, userId: string): Promise<boolean> {
     const result = await this.db
       .delete(schema.contents)

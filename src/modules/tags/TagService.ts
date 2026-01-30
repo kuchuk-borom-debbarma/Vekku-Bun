@@ -58,4 +58,6 @@ export interface ITagService {
   }): Promise<ChunkPaginationData<UserTag>>;
 
   getTagsByIds(tagIds: string[], userId: string): Promise<UserTag[]>;
+
+  bulkDeleteTags(userId: string, ids: string[] | "ALL"): Promise<void>;
 }
