@@ -17,38 +17,36 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
 1. Identify the most relevant topics, themes, and entities (e.g. "Wisdom", "Growth", "React", "Economics").
 2. Focus primarily on the Title and introductory text (Description) for core themes.
 3. Use the remaining text (Body/Transcript) for specific details but ignore conversational noise.
-4. Return a valid JSON object with a single key "keywords".
-5. "keywords" should be a list of objects, each having:
-   - "word": string (the keyword)
-   - "score": number (0.0 to 1.0 relevance)
-6. Do NOT output Markdown code blocks. Just the JSON string.
+4. Return the result as a list of lines, where each line contains the keyword and its score separated by a pipe symbol "|".
+5. Format: Keyword | Score
+6. Example:
+Wisdom | 0.9
+Personal Growth | 0.85
+7. Do NOT output any other text or markdown.
 
 TEXT:
 ${content.slice(0, 4000)}`;
 
     try {
       const response = await ai.generateText(prompt, "You are a precise metadata assistant.");
-      const cleaned = response.replace(/```json/g, "").replace(/```/g, "").trim();
       
-      let parsed;
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch (e) {
-        const match = cleaned.match(/\{[\s\S]*\}/);
-        if (match) {
-            parsed = JSON.parse(match[0]);
-        } else {
-            throw e;
+      const lines = response.split("\n");
+      const keywords: { word: string; score: number }[] = [];
+
+      for (const line of lines) {
+        const parts = line.split("|");
+        if (parts.length >= 2) {
+          const word = parts[0]!.trim();
+          const scoreStr = parts[1]!.trim();
+          const score = parseFloat(scoreStr);
+
+          if (word.length > 1 && !isNaN(score)) {
+             keywords.push({ word, score });
+          }
         }
       }
       
-      if (parsed && Array.isArray(parsed.keywords)) {
-        return parsed.keywords.map((k: any) => ({
-          word: typeof k.word === 'string' ? k.word : String(k),
-          score: typeof k.score === 'number' ? k.score : 0.5
-        }));
-      }
-      return [];
+      return keywords;
     } catch (e) {
       console.error("[SuggestionService] Extraction failed:", e);
       return [];
