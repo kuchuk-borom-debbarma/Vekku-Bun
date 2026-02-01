@@ -85,17 +85,6 @@ export class ContentTagServiceImpl implements IContentTagService {
         userId: data.userId
       });
 
-      // 3. Batch Learn Semantic Concepts (Background)
-      const learningPromise = this.suggestionService.learnTags(tags.map(t => t.semantic));
-      
-      if (ctx?.waitUntil) {
-        ctx.waitUntil(learningPromise);
-      } else {
-        learningPromise.catch(e => {
-          console.error("[ContentTagService] Failed to learn tags in background:", e);
-        });
-      }
-
       return true;
     } catch (err) {
       console.error(`Error adding keywords to content: ${err}`);
