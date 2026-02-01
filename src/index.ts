@@ -40,7 +40,12 @@ const createApp = (env: Bindings) => {
   const app = new Hono<{ Bindings: Bindings }>();
 
   app.use("/api/*", cors({
-    origin: env.FRONTEND_URL || "*",
+    origin: (origin) => {
+      if (!env.FRONTEND_URL) return "*";
+      
+      const allowedOrigins = env.FRONTEND_URL.split(",").map((o) => o.trim());
+      return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+    },
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["Content-Length"],
