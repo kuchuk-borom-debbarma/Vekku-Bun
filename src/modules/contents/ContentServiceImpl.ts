@@ -8,7 +8,6 @@ import {
   ContentType,
   type IContentService,
 } from "./ContentService";
-import { getContentEmbeddingService } from "./index";
 import { getEventBus, TOPICS } from "../../lib/events";
 import { CacheServiceUpstash } from "../../lib/cache";
 
@@ -236,8 +235,30 @@ export class ContentServiceImpl implements IContentService {
   }
 
   async searchContents(userId: string, query: string, limit: number = 10, offset: number = 0): Promise<Content[]> {
-    const embeddingService = getContentEmbeddingService();
-    return embeddingService.searchContent(userId, query, limit, offset);
+    // Fallback to simple ILIKE search since Vector Search is removed
+    const searchPattern = `%${query}%`;
+    const rows = await this.db
+      .select()
+      .from(schema.contents)
+      .where(
+        and(
+            eq(schema.contents.userId, userId),
+            sql`(${schema.contents.title} ILIKE ${searchPattern} OR ${schema.contents.body} ILIKE ${searchPattern})`
+        )
+      )
+      .limit(limit)
+      .offset(offset);
+
+    return rows.map(content => ({
+      id: content.id,
+      title: content.title,
+      body: content.body,
+      userId: content.userId,
+      contentType: content.contentType as ContentType,
+      metadata: content.metadata,
+      createdAt: content.createdAt,
+      updatedAt: content.updatedAt,
+    }));
   }
 
   async deleteContent(id: string, userId: string): Promise<boolean> {

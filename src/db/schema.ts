@@ -5,7 +5,6 @@ import {
   boolean,
   index,
   text,
-  vector,
   uniqueIndex,
   pgEnum,
   jsonb,
@@ -30,28 +29,6 @@ export const user = pgTable(
     isDeleted: boolean("is_deleted").default(false).notNull(),
   },
   (table) => [index("user_username_idx").on(table.username)],
-);
-
-// --- Tag Concept Domain (Embeddings) ---
-
-export const tagEmbeddings = pgTable(
-  "tag_embeddings",
-  {
-    id: varchar({ length: 255 }).primaryKey(), // Deterministic UUID based on semantic
-    semantic: text().notNull(),
-    embedding: vector("embedding", { dimensions: 384 }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at"),
-  },
-  (table) => [
-    // HNSW Index for fast cosine similarity search
-    index("embedding_hnsw_idx").using(
-      "hnsw",
-      table.embedding.op("vector_cosine_ops"),
-    ),
-    // Ensure uniqueness so multiple users map to the same embedding entry
-    uniqueIndex("unique_tag_concept").on(table.semantic),
-  ],
 );
 
 // --- User Tag Domain (Links) ---
@@ -105,20 +82,22 @@ export const contents = pgTable(
   ],
 );
 
-export const contentEmbeddings = pgTable(
-  "content_embeddings",
+export const contentSuggestions = pgTable(
+  "content_suggestions",
   {
+    id: varchar({ length: 255 }).primaryKey(),
     contentId: varchar("fk_content_id", { length: 255 })
-      .primaryKey()
+      .notNull()
       .references(() => contents.id, { onDelete: "cascade" }),
-    embedding: vector("embedding", { dimensions: 384 }), // bge-small-en-v1.5
-    updatedAt: timestamp("updated_at").defaultNow(),
+    data: jsonb("data").$type<{
+      existing: { tagId: string; name: string; score: number }[];
+      potential: { keyword: string; score: number }[];
+    }>().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at"),
   },
   (table) => [
-    index("content_embedding_hnsw_idx").using(
-      "hnsw",
-      table.embedding.op("vector_cosine_ops"),
-    ),
+    uniqueIndex("content_suggestions_content_id_unique").on(table.contentId),
   ],
 );
 

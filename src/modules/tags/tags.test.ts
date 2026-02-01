@@ -20,6 +20,14 @@ mock.module("../../lib/cache", () => ({
   },
 }));
 
+mock.module("../../lib/events", () => ({
+  getEventBus: () => ({
+    publish: mock(async () => {}),
+    subscribe: mock(() => {}),
+  }),
+  TOPICS: { TAG: { CREATED: "TAG.CREATED", UPDATED: "TAG.UPDATED", DELETED: "TAG.DELETED" } },
+}));
+
 // Mock Database
 const createMockQuery = (data: any) => {
   const query = Promise.resolve(data) as any;
@@ -31,7 +39,6 @@ const createMockQuery = (data: any) => {
   query.onConflictDoUpdate = mock(() => query);
   query.returning = mock(() => query);
   query.set = mock(() => query);
-  // query.leftJoin = mock(() => query); // Removed as we don't use it anymore
   return query;
 };
 
@@ -40,20 +47,11 @@ const mockDb = {
   select: mock(() => createMockQuery([])),
   update: mock(() => createMockQuery([])),
   delete: mock(() => createMockQuery([])),
+  execute: mock(async () => {}),
 };
 
 mock.module("../../db", () => ({
   getDb: () => mockDb,
-}));
-
-// Mock Suggestion Service
-const mockSuggestionService = {
-  learnTag: mock(async () => "mock-embedding-id"),
-  ensureConceptExists: mock(async () => "mock-embedding-id"),
-};
-
-mock.module("../suggestions", () => ({
-  getTagSuggestionService: () => mockSuggestionService,
 }));
 
 describe("TagService", () => {
@@ -66,8 +64,7 @@ describe("TagService", () => {
     mockDb.select.mockClear();
     mockDb.update.mockClear();
     mockDb.delete.mockClear();
-    mockSuggestionService.learnTag.mockClear();
-    mockSuggestionService.ensureConceptExists.mockClear();
+    mockDb.execute.mockClear();
   });
 
   describe("createTag", () => {
@@ -79,18 +76,16 @@ describe("TagService", () => {
         userId: "u1",
         semantic: "office tasks", // Normalized
         createdAt: new Date(),
-        updatedAt: new Date(),
+        updatedAt: null, // null means inserted
       };
 
       // Mock insert returning the tag
       mockDb.insert.mockImplementationOnce(() => createMockQuery([dbResponse]));
 
       const result = await tagService.createTag(input);
-
-      // Verify explicit learning is NOT called
-      expect(mockSuggestionService.ensureConceptExists).not.toHaveBeenCalled();
       
       expect(mockDb.insert).toHaveBeenCalled();
+      expect(mockDb.execute).toHaveBeenCalled(); // Metadata update
       expect(result?.id).toBe(mockUuid);
       expect(result?.name).toBe("work");
       expect(result?.semantic).toBe("office tasks");
@@ -135,7 +130,7 @@ describe("TagService", () => {
       expect(result?.semantic).toBe("old-semantic");
     });
 
-    test("should update semantic without synchronous learning", async () => {
+    test("should update semantic", async () => {
        const dbResponse = {
         id: "t1",
         name: "work",
@@ -154,7 +149,6 @@ describe("TagService", () => {
         semantic: "New-Semantic",
       });
 
-      expect(mockSuggestionService.ensureConceptExists).not.toHaveBeenCalled();
       expect(result?.semantic).toBe("new-semantic"); // Normalized from DB response
     });
   });
@@ -165,6 +159,8 @@ describe("TagService", () => {
         createMockQuery([{ id: "t1" }]),
       );
       const result = await tagService.deleteTag({ id: "t1", userId: "u1" });
+      
+      expect(mockDb.execute).toHaveBeenCalled(); // Metadata update
       expect(result).toBeTrue();
     });
 

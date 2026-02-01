@@ -43,6 +43,25 @@ export const getAiRatelimit = () => {
   }
 };
 
+let suggestionRatelimit: Ratelimit | null = null;
+
+export const getSuggestionRatelimit = () => {
+  if (suggestionRatelimit) return suggestionRatelimit;
+  try {
+    const redis = getRedisClient();
+    suggestionRatelimit = new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.slidingWindow(5, "1 m"), // 5 requests per minute
+      analytics: true,
+      ephemeralCache: new Map(),
+      prefix: "@upstash/suggestion-ratelimit",
+    });
+    return suggestionRatelimit;
+  } catch {
+    return null;
+  }
+};
+
 export const rateLimiter = async (c: Context, next: Next) => {
   const limiter = getRatelimit();
   if (!limiter) return next();
