@@ -16,26 +16,20 @@ export type ContentSuggestions = {
 };
 
 export interface IContentTagSuggestionService {
-  /**
-   * Get suggestions for a piece of content.
-   * Checks the database first. If missing, generates using AI and saves.
-   * Performs runtime filtering to ensure existing tags are still valid.
-   */
   getSuggestionsForContent(
     contentId: string,
     userId: string
   ): Promise<ContentSuggestions>;
 
-  /**
-   * Force regenerate suggestions using AI and update the DB.
-   */
   regenerateSuggestionsForContent(
     contentId: string,
     userId: string
   ): Promise<ContentSuggestions>;
 
-  /**
-   * Extract raw keywords from text (Stateless).
-   */
+  generateSuggestionsForText(
+    text: string,
+    userId: string
+  ): Promise<ContentSuggestions>;
+
   extractKeywords(content: string): Promise<{ word: string; score: number }[]>;
 }

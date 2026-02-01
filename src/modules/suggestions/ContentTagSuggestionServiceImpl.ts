@@ -32,7 +32,6 @@ ${content.slice(0, 4000)}`;
       try {
         parsed = JSON.parse(cleaned);
       } catch (e) {
-        // Fallback: try to find JSON object in text
         const match = cleaned.match(/\{[\s\S]*\}/);
         if (match) {
             parsed = JSON.parse(match[0]);
@@ -70,7 +69,6 @@ ${content.slice(0, 4000)}`;
       // 2. Runtime Filter: Ensure existing tags are still valid
       if (data.existing && data.existing.length > 0) {
         const tagIds = data.existing.map(e => e.tagId);
-        // Optimization: If tagIds is huge, chunk it? Usually < 20.
         const validTags = await db
           .select({ id: userTags.id })
           .from(userTags)
@@ -87,28 +85,15 @@ ${content.slice(0, 4000)}`;
     return this.regenerateSuggestionsForContent(contentId, userId);
   }
 
-  async regenerateSuggestionsForContent(contentId: string, userId: string): Promise<ContentSuggestions> {
+  async generateSuggestionsForText(text: string, userId: string): Promise<ContentSuggestions> {
     const db = getDb();
+    if (!text.trim()) return { existing: [], potential: [] };
 
-    // 1. Fetch Content
-    const contentRow = await db
-      .select({ title: contents.title, body: contents.body })
-      .from(contents)
-      .where(and(eq(contents.id, contentId), eq(contents.userId, userId)))
-      .limit(1);
-
-    if (contentRow.length === 0) {
-      return { existing: [], potential: [] };
-    }
-
-    const textToAnalyze = `${contentRow[0].title}\n\n${contentRow[0].body}`;
-    if (!textToAnalyze.trim()) return { existing: [], potential: [] };
-
-    // 2. Extract Keywords
-    const keywords = await this.extractKeywords(textToAnalyze);
+    // 1. Extract Keywords
+    const keywords = await this.extractKeywords(text);
     if (keywords.length === 0) return { existing: [], potential: [] };
 
-    // 3. Match with User Tags
+    // 2. Match with User Tags
     const keywordSemantics = keywords.map(k => normalize(k.word));
     
     let matchingTags: { id: string; name: string; semantic: string }[] = [];
@@ -160,9 +145,29 @@ ${content.slice(0, 4000)}`;
     existing.sort((a, b) => b.score - a.score);
     potential.sort((a, b) => b.score - a.score);
 
-    const result: ContentSuggestions = { existing, potential };
+    return { existing, potential };
+  }
 
-    // 4. Save to DB (Upsert)
+  async regenerateSuggestionsForContent(contentId: string, userId: string): Promise<ContentSuggestions> {
+    const db = getDb();
+
+    // 1. Fetch Content
+    const contentRow = await db
+      .select({ title: contents.title, body: contents.body })
+      .from(contents)
+      .where(and(eq(contents.id, contentId), eq(contents.userId, userId)))
+      .limit(1);
+
+    if (contentRow.length === 0) {
+      return { existing: [], potential: [] };
+    }
+
+    const textToAnalyze = `${contentRow[0].title}\n\n${contentRow[0].body}`;
+    
+    // 2. Generate
+    const result = await this.generateSuggestionsForText(textToAnalyze, userId);
+
+    // 3. Save to DB (Upsert)
     const suggestionId = generateUUID();
     
     await db

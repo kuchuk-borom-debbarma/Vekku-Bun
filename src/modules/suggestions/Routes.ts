@@ -97,7 +97,35 @@ suggestionRouter.post("/content/:contentId/regenerate", async (c) => {
   }
 });
 
-// Extract Keywords (Stateless)
+// Analyze Text (Stateless - for drafts)
+suggestionRouter.post("/analyze", async (c) => {
+  const { text } = await c.req.json();
+  const user = c.get("user");
+  const suggestionService = getContentTagSuggestionService();
+
+  if (!text) return c.json({ error: "Text is required" }, 400);
+
+  // Rate Limit (AI) - Shared with suggestions
+  const limiter = getSuggestionRatelimit();
+  if (limiter) {
+     const { success, limit, reset, remaining } = await limiter.limit(user.id);
+     c.header("X-RateLimit-Limit", limit.toString());
+     c.header("X-RateLimit-Remaining", remaining.toString());
+     c.header("X-RateLimit-Reset", reset.toString());
+
+     if (!success) return c.json({ error: "Rate limit exceeded" }, 429);
+  }
+
+  try {
+    const result = await suggestionService.generateSuggestionsForText(text, user.id);
+    return c.json(result);
+  } catch (err) {
+    console.error("[SuggestionAPI] Error analyzing text:", err);
+    return c.json({ error: "Failed to analyze text" }, 500);
+  }
+});
+
+// Extract Keywords (Stateless - simple list)
 suggestionRouter.post("/extract", async (c) => {
   const { text } = await c.req.json();
   if (!text) return c.json({ error: "Text is required" }, 400);
