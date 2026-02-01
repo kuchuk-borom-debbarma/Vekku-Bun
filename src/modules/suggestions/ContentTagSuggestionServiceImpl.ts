@@ -15,11 +15,13 @@ export class ContentTagSuggestionServiceImpl implements IContentTagSuggestionSer
     const ai = getAIService();
     const prompt = `Analyze the following text.
 1. Identify the most relevant topics, themes, and entities (e.g. "Wisdom", "Growth", "React", "Economics").
-2. Return a valid JSON object with a single key "keywords".
-3. "keywords" should be a list of objects, each having:
+2. Focus primarily on the Title and introductory text (Description) for core themes.
+3. Use the remaining text (Body/Transcript) for specific details but ignore conversational noise.
+4. Return a valid JSON object with a single key "keywords".
+5. "keywords" should be a list of objects, each having:
    - "word": string (the keyword)
    - "score": number (0.0 to 1.0 relevance)
-4. Do NOT output Markdown code blocks. Just the JSON string.
+6. Do NOT output Markdown code blocks. Just the JSON string.
 
 TEXT:
 ${content.slice(0, 4000)}`;
