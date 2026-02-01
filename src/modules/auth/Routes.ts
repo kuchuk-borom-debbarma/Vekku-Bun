@@ -32,7 +32,10 @@ authRouter.post("/signup/request", async (c) => {
   const token = await generateSignupToken({ email, passwordHash, name });
 
   // Use FRONTEND_URL from env or default to localhost
-  const frontendUrl = c.env.FRONTEND_URL || "http://localhost:5173";
+  const allowedUrls = (c.env.FRONTEND_URL || "http://localhost:5173").split(",").map(u => u.trim());
+  const origin = c.req.header("Origin");
+  const frontendUrl = (origin && allowedUrls.includes(origin)) ? origin : allowedUrls[0];
+  
   const verifyUrl = `${frontendUrl}/verify?token=${token}`;
   
   console.log(`\n>>> Verify Signup: ${verifyUrl} <<<\n`);
