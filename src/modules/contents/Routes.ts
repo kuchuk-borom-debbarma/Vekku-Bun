@@ -260,6 +260,16 @@ contentRouter.post("/:id/tags", async (c) => {
   return c.json({ success });
 });
 
+contentRouter.delete("/:id/tags", async (c) => {
+  const contentId = c.req.param("id");
+  const { tagIds } = await c.req.json();
+  const user = c.get("user");
+  const contentTagService = getContentTagService();
+
+  const success = await contentTagService.removeTagsFromContent({ tagIds, contentId, userId: user.id });
+  return c.json({ success });
+});
+
 contentRouter.get("/:id/tags", async (c) => {
   const contentId = c.req.param("id");
   const user = c.get("user");
